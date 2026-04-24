@@ -1,0 +1,26 @@
+{
+  "sessionId": "research-session-1",
+  "userId": "user-1",
+  "surface": "assistant",
+  "focusObjectIds": ["topic:agent-native-recommendation"],
+  "recentEvents": [
+    {
+      "id": "event:1",
+      "type": "user_prompted",
+      "timestampMs": 1713931140000,
+      "objectRefs": ["topic:agent-native-recommendation"]
+    },
+    {
+      "id": "event:2",
+      "type": "outline_viewed",
+      "timestampMs": 1713931160000,
+      "objectRefs": ["draft:outline-v1"]
+    }
+  ],
+  "metadata": {
+    "topic": "agent-native recommendation runtime",
+    "userGoal": "build a research outline",
+    "stateOrigin": "cloud"
+  }
+}
+

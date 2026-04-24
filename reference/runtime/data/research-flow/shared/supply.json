@@ -1,0 +1,55 @@
+[
+  {
+    "id": "supply:clarify-scope",
+    "kind": "content",
+    "score": 0.74,
+    "metadata": {
+      "mode": "clarification",
+      "objectRefs": ["topic:agent-native-recommendation"],
+      "headline": "Ask one narrowing question about scope",
+      "reasonPrefix": "Useful before deeper work for",
+      "valueLevel": "high",
+      "costLevel": "low"
+    }
+  },
+  {
+    "id": "supply:outline-step",
+    "kind": "step",
+    "score": 0.88,
+    "metadata": {
+      "mode": "workflow_step",
+      "objectRefs": ["topic:agent-native-recommendation"],
+      "headline": "Draft a first-pass research outline",
+      "reasonPrefix": "Strong next step for",
+      "valueLevel": "high",
+      "costLevel": "medium"
+    }
+  },
+  {
+    "id": "supply:search-tool",
+    "kind": "tool",
+    "score": 0.8,
+    "metadata": {
+      "mode": "tool_run",
+      "objectRefs": ["topic:agent-native-recommendation"],
+      "headline": "Run a targeted literature search",
+      "reasonPrefix": "Actionable next step for",
+      "valueLevel": "high",
+      "costLevel": "high"
+    }
+  },
+  {
+    "id": "supply:open-notes",
+    "kind": "page",
+    "score": 0.67,
+    "metadata": {
+      "mode": "navigation",
+      "objectRefs": ["draft:outline-v1"],
+      "headline": "Open the previous outline draft",
+      "reasonPrefix": "Helps recover context for",
+      "valueLevel": "medium",
+      "costLevel": "low"
+    }
+  }
+]
+

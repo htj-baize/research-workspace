@@ -1,0 +1,12 @@
+[
+  {
+    "id": "memory:recent-preference",
+    "kind": "memory",
+    "score": 0.7,
+    "metadata": {
+      "summary": "User prefers concise outlines before deep dives",
+      "source": "local"
+    }
+  }
+]
+

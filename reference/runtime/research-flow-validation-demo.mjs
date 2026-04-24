@@ -1,4 +1,4 @@
-const now = Date.now();
+import { loadResearchFlowStorage } from "./storage/file-state-storage.mjs";
 
 function inferIntent(context) {
   const hasFocus = context.focusObjectIds.length > 0;
@@ -38,39 +38,25 @@ function inferIntent(context) {
   };
 }
 
-function retrieveMaterials(strategy, context, intent, dataset) {
+function retrieveMaterials(strategy, context, intent, storage) {
   const sessionEvents = context.recentEvents || [];
-  const stateRefs = [
-    {
-      id: `state:${context.sessionId}`,
-      kind: "session_state",
-      score: 1,
-      metadata: {
-        source: strategy,
-        eventCount: sessionEvents.length,
-      },
+  const stateRefs = storage.state.map((ref) => ({
+    ...ref,
+    metadata: {
+      ...ref.metadata,
+      eventCount: sessionEvents.length,
     },
-  ];
+  }));
 
-  const memoryRefs =
-    strategy === "local-heavy"
-      ? dataset.localMemory
-      : strategy === "cloud-heavy"
-        ? dataset.cloudMemory
-        : [...dataset.localMemory, ...dataset.cloudMemory];
+  const memoryRefs = storage.memory;
 
-  const supplyRefs = dataset.supply.filter((ref) => {
+  const supplyRefs = storage.supply.filter((ref) => {
     if (!context.focusObjectIds.length) return true;
     const objectRefs = ref.metadata?.objectRefs || [];
     return objectRefs.some((id) => context.focusObjectIds.includes(id));
   });
 
-  const constraintRefs =
-    strategy === "cloud-heavy"
-      ? dataset.cloudConstraints
-      : strategy === "local-heavy"
-        ? dataset.localConstraints
-        : [...dataset.localConstraints, ...dataset.cloudConstraints];
+  const constraintRefs = storage.constraints;
 
   return {
     state: stateRefs,
@@ -239,150 +225,17 @@ function executeSelection(decision) {
   };
 }
 
-function buildScenario() {
-  const baseContext = {
-    sessionId: "research-session-1",
-    userId: "user-1",
-    surface: "assistant",
-    focusObjectIds: ["topic:agent-native-recommendation"],
-    recentEvents: [
-      {
-        id: "event:1",
-        type: "user_prompted",
-        timestampMs: now - 60_000,
-        objectRefs: ["topic:agent-native-recommendation"],
-      },
-      {
-        id: "event:2",
-        type: "outline_viewed",
-        timestampMs: now - 40_000,
-        objectRefs: ["draft:outline-v1"],
-      },
-      {
-        id: "event:3",
-        type: "outcome_rejected",
-        timestampMs: now - 15_000,
-        objectRefs: ["opp:old"],
-      },
-    ],
-    metadata: {
-      topic: "agent-native recommendation runtime",
-      userGoal: "build a research outline",
-    },
-  };
-
-  const dataset = {
-    localMemory: [
-      {
-        id: "memory:recent-preference",
-        kind: "memory",
-        score: 0.7,
-        metadata: {
-          summary: "User prefers concise outlines before deep dives",
-        },
-      },
-    ],
-    cloudMemory: [
-      {
-        id: "memory:long-term",
-        kind: "memory",
-        score: 0.65,
-        metadata: {
-          summary: "Past research tasks favored structured comparison tables",
-        },
-      },
-    ],
-    localConstraints: [
-      {
-        id: "constraint:low-friction",
-        kind: "constraint",
-        score: 1,
-        metadata: {
-          type: "interaction_preference",
-          value: "low_friction",
-        },
-      },
-    ],
-    cloudConstraints: [
-      {
-        id: "constraint:tool-cost",
-        kind: "constraint",
-        score: 1,
-        metadata: {
-          type: "tool_cost",
-          value: "medium_budget",
-        },
-      },
-    ],
-    supply: [
-      {
-        id: "supply:clarify-scope",
-        kind: "content",
-        score: 0.74,
-        metadata: {
-          mode: "clarification",
-          objectRefs: ["topic:agent-native-recommendation"],
-          headline: "Ask one narrowing question about scope",
-          reasonPrefix: "Useful before deeper work for",
-          valueLevel: "high",
-          costLevel: "low",
-        },
-      },
-      {
-        id: "supply:outline-step",
-        kind: "step",
-        score: 0.88,
-        metadata: {
-          mode: "workflow_step",
-          objectRefs: ["topic:agent-native-recommendation"],
-          headline: "Draft a first-pass research outline",
-          reasonPrefix: "Strong next step for",
-          valueLevel: "high",
-          costLevel: "medium",
-        },
-      },
-      {
-        id: "supply:search-tool",
-        kind: "tool",
-        score: 0.8,
-        metadata: {
-          mode: "tool_run",
-          objectRefs: ["topic:agent-native-recommendation"],
-          headline: "Run a targeted literature search",
-          reasonPrefix: "Actionable next step for",
-          valueLevel: "high",
-          costLevel: "high",
-        },
-      },
-      {
-        id: "supply:open-notes",
-        kind: "page",
-        score: 0.67,
-        metadata: {
-          mode: "navigation",
-          objectRefs: ["draft:outline-v1"],
-          headline: "Open the previous outline draft",
-          reasonPrefix: "Helps recover context for",
-          valueLevel: "medium",
-          costLevel: "low",
-        },
-      },
-    ],
-  };
-
-  return { baseContext, dataset };
-}
-
-function runStrategy(strategy, scenario) {
+function runStrategy(strategy) {
+  const storage = loadResearchFlowStorage(strategy);
   const context = {
-    ...scenario.baseContext,
+    ...storage.session,
     metadata: {
-      ...scenario.baseContext.metadata,
+      ...storage.session.metadata,
       stateStrategy: strategy,
     },
   };
   const intent = inferIntent(context);
-  const materials = retrieveMaterials(strategy, context, intent, scenario.dataset);
+  const materials = retrieveMaterials(strategy, context, intent, storage);
   const opportunities = constructOpportunities(context, intent, materials);
   const decision = decide(strategy, context, intent, opportunities);
   const execution = executeSelection(decision);
@@ -414,9 +267,8 @@ function runStrategy(strategy, scenario) {
 }
 
 function main() {
-  const scenario = buildScenario();
   const strategies = ["cloud-heavy", "hybrid", "local-heavy"];
-  const results = strategies.map((strategy) => runStrategy(strategy, scenario));
+  const results = strategies.map((strategy) => runStrategy(strategy));
 
   console.log(JSON.stringify(results, null, 2));
 }

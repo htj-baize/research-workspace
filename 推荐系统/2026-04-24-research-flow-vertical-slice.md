@@ -39,14 +39,15 @@ context
 
 - [research-flow-validation-demo.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/research-flow-validation-demo.mjs)
 
-这个 demo 做了三件事：
+这个 demo 现在做了四件事：
 
 1. 固定一个真实感足够强的研究整理场景。
-2. 用同一套 runtime 思路跑三种 state 架构切法：
+2. 从真实文件存储读取 local / cloud / shared 数据，而不是把所有 state 写死在内存里。
+3. 用同一套 runtime 思路跑三种 state 架构切法：
    - `cloud-heavy`
    - `hybrid`
    - `local-heavy`
-3. 输出每种策略下的：
+4. 输出每种策略下的：
    - `intent`
    - retrieval summary
    - selected opportunities
@@ -95,13 +96,28 @@ context
 
 ### 4. local / cloud / hybrid 是否会表现出不同结构特征
 
-当前 demo 没有模拟真实网络延迟，但已经模拟了：
+当前 demo 已经通过真实文件存储模拟了：
 
-- local-heavy：memory 和 constraints 更偏本地
-- cloud-heavy：memory 和 constraints 更偏云端
-- hybrid：两边都取
+- local session 比 cloud session 更新得更快
+- local session 包含最近一次 `outcome_rejected`
+- cloud session 暂时滞后，因此缺少这条事件
+- memory 和 constraints 也按 local / cloud 分开存储
 
-这为下一步做真实系统验证提供了最小骨架。
+这带来了真实可观察的差异：
+
+- `cloud-heavy`
+  - recent event 较少
+  - intent 更容易落到 `continue_current_object`
+  - 会保留高成本 `tool_run`
+- `hybrid`
+  - 能读到 local reject
+  - intent 落到 `recover_flow`
+  - 会压掉高成本 `tool_run`
+- `local-heavy`
+  - 与 `hybrid` 一样能恢复到 `recover_flow`
+  - 但 memory / constraints 的输入更少
+
+这已经不再只是静态框架，而是一个最小的 state 架构对比原型。
 
 ## 如何运行
 
@@ -129,6 +145,28 @@ node reference/runtime/research-flow-validation-demo.mjs
 2. `recover_flow` 是否稳定压掉高成本动作？
 3. `hybrid` 是否比极端策略保留了更多合理材料？
 4. 当前 taxonomy 是否足以表达场景里的下一步？
+
+## 当前真实存储结构
+
+当前 vertical slice 的存储数据位于：
+
+- [file-state-storage.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/storage/file-state-storage.mjs)
+- [local/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/session.json)
+- [cloud/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/session.json)
+- [local/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/memory.json)
+- [cloud/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/memory.json)
+- [local/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/constraints.json)
+- [cloud/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/constraints.json)
+- [shared/supply.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/shared/supply.json)
+
+也就是说，这个 demo 现在已经具备：
+
+- local state source
+- cloud state source
+- shared supply source
+- strategy-specific merge logic
+
+这使得后续替换成真实 DB、KV、远端服务时，迁移路径会更清楚。
 
 ## 下一步怎么扩展
 
@@ -172,4 +210,3 @@ node reference/runtime/research-flow-validation-demo.mjs
 如果用一句话总结：
 
 > 这个 vertical slice 的价值，不是证明推荐结果“最优”，而是证明 recommendation runtime 已经可以在一个通用 agent flow 里真实地产生可观察、可比较、可写回的下一步决策。
-

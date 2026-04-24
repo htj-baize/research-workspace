@@ -20,6 +20,8 @@ Current contents:
 - `reference/runtime/in-memory-recommendation-runtime.ts`
 - `reference/runtime/sample-usage.ts`
 - `reference/runtime/research-flow-validation-demo.mjs`
+- `reference/runtime/storage/file-state-storage.mjs`
+- `reference/runtime/data/research-flow/`
 - `推荐系统/2026-04-24-research-flow-vertical-slice.md`
 
 ## Directories
