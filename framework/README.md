@@ -17,6 +17,8 @@ This directory holds the runtime pieces that are meant to become the packaged SD
 
 ## Current layout
 
+- `index.ts`
+  - Public package surface for SDK consumers.
 - `core/`
   - Shared protocol and service contracts.
   - Feedback protocol for event -> signal -> state projection.
@@ -24,5 +26,14 @@ This directory holds the runtime pieces that are meant to become the packaged SD
 - `runtime/`
   - Default retrieval, candidate construction, policy, and feedback services.
   - In-memory runtime implementation, including `handleFeedback()` for feedback -> signal -> projection -> context-state writes.
+  - `buildReferenceRuntime()` for assembling a reference runtime without importing internal files one by one.
 - `storage/`
   - File-backed and in-memory state helpers used by the demos and validation slices.
+
+## Recommended consumer entrypoint
+
+Business-side code should prefer:
+
+- [index.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/index.ts)
+
+Instead of importing deep internal paths directly.
