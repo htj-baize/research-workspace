@@ -123,6 +123,40 @@ function html(body) {
       padding: 14px;
       display: grid;
       gap: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      border-radius: 18px 0 0 18px;
+      background: rgba(49,90,115,.18);
+    }
+    .card-clarification {
+      background: linear-gradient(135deg, rgba(255,251,240,.95), rgba(255,244,219,.88));
+    }
+    .card-clarification::before {
+      background: #c58d22;
+    }
+    .card-workflow_step {
+      background: linear-gradient(135deg, rgba(245,249,255,.95), rgba(228,239,255,.92));
+    }
+    .card-workflow_step::before {
+      background: #315a73;
+    }
+    .card-tool_run {
+      background: linear-gradient(135deg, rgba(255,244,240,.96), rgba(255,229,221,.92));
+    }
+    .card-tool_run::before {
+      background: #b14d2f;
+    }
+    .card-navigation {
+      background: linear-gradient(135deg, rgba(242,250,245,.95), rgba(228,244,234,.92));
+    }
+    .card-navigation::before {
+      background: #2f6b45;
     }
     .card-head {
       display: flex;
@@ -143,12 +177,60 @@ function html(body) {
       color: white;
       background: var(--accent-2);
     }
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .card-copy {
+      display: grid;
+      gap: 6px;
+    }
+    .card-description {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .card-prompt {
+      background: rgba(255,255,255,.58);
+      border: 1px solid rgba(30,29,27,.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.45;
+    }
     .meta, .trace-list {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       color: var(--muted);
       font-size: 13px;
+    }
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .metric {
+      background: rgba(255,255,255,.6);
+      border: 1px solid rgba(30,29,27,.08);
+      border-radius: 14px;
+      padding: 10px;
+      display: grid;
+      gap: 4px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+    .metric-value {
+      font-size: 16px;
+      line-height: 1;
     }
     .trace-list span,
     .meta span {
@@ -160,6 +242,12 @@ function html(body) {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+    .btn-ghost {
+      background: transparent;
+    }
+    .btn-soft {
+      background: rgba(255,255,255,.7);
     }
     .side-block {
       display: grid;
@@ -301,6 +389,67 @@ function feedPage() {
       }
     }
 
+    function cardPreset(opportunity) {
+      const mode = opportunity.metadata?.mode || opportunity.kind;
+      if (mode === "clarification") {
+        return {
+          variant: "clarification",
+          eyebrow: "Clarify",
+          description: "先问一个更窄的问题，压缩搜索空间，再进入更重的执行动作。",
+          prompt: "推荐先确认：你想要的是框架深度、文献覆盖，还是一个能立刻展开的执行骨架？",
+          runLabel: "Ask This",
+          focusLabel: "Center On It",
+        };
+      }
+      if (mode === "workflow_step") {
+        return {
+          variant: "workflow_step",
+          eyebrow: "Workflow Step",
+          description: "这是当前最像主路径推进的一步，适合把模糊目标变成一个中间产物。",
+          prompt: "如果现在只允许推进一格，最值当的是先产出一个可修改的中间版本。",
+          runLabel: "Start Step",
+          focusLabel: "Make Primary",
+        };
+      }
+      if (mode === "tool_run") {
+        return {
+          variant: "tool_run",
+          eyebrow: "Tool Run",
+          description: "这是一个更重的动作，成本更高，但可能直接带来外部材料或强信号。",
+          prompt: "只有当你愿意为更深信息付出更高成本时，这种卡才应该占前排。",
+          runLabel: "Run Tool",
+          focusLabel: "Hold For Later",
+        };
+      }
+      if (mode === "navigation") {
+        return {
+          variant: "navigation",
+          eyebrow: "Recover Context",
+          description: "这类卡不是强推新动作，而是帮助你重新进入当前 flow。",
+          prompt: "先回到你已经有的上下文，再决定要不要继续执行。",
+          runLabel: "Open View",
+          focusLabel: "Refocus Here",
+        };
+      }
+      return {
+        variant: "generic",
+        eyebrow: "Recommendation",
+        description: "这是一张通用型推荐卡，适合继续当前对象但没有明显动作偏置。",
+        prompt: "把它当成当前状态下的一般下一步建议。",
+        runLabel: "Run",
+        focusLabel: "Focus",
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     function renderDecision(payload) {
       latestDecision = payload;
       const decision = payload.decision;
@@ -328,26 +477,42 @@ function feedPage() {
       }
 
       for (const opportunity of decision.opportunities) {
+        const preset = cardPreset(opportunity);
         const card = document.createElement("article");
-        card.className = "card";
+        card.className = \`card card-\${preset.variant}\`;
         card.innerHTML = \`
           <div class="card-head">
-            <div>
+            <div class="card-copy">
+              <div class="eyebrow">\${escapeHtml(preset.eyebrow)}</div>
               <h2 class="card-title">\${opportunity.headline}</h2>
               <div class="sub">\${opportunity.reason}</div>
+              <div class="card-description">\${escapeHtml(preset.description)}</div>
             </div>
             <div class="pill">\${opportunity.kind}</div>
           </div>
+          <div class="card-prompt">\${escapeHtml(preset.prompt)}</div>
+          <div class="metric-row">
+            <div class="metric">
+              <div class="metric-label">Cost Band</div>
+              <div class="metric-value">\${opportunity.cost?.level || "n/a"}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Value Pull</div>
+              <div class="metric-value">\${opportunity.value?.level || "n/a"}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Mode</div>
+              <div class="metric-value">\${escapeHtml(opportunity.metadata?.mode || "n/a")}</div>
+            </div>
+          </div>
           <div class="meta">
-            <span>cost: \${opportunity.cost?.level || "n/a"}</span>
-            <span>value: \${opportunity.value?.level || "n/a"}</span>
-            <span>mode: \${opportunity.metadata?.mode || "n/a"}</span>
             <span>score: \${opportunity.score ?? "n/a"}</span>
+            <span>source: \${escapeHtml((opportunity.sourceRefs || []).join(" · "))}</span>
           </div>
           <div class="actions">
-            <button data-opportunity="\${opportunity.id}" data-action="dismiss">Skip</button>
-            <button data-opportunity="\${opportunity.id}" data-action="focus">Focus</button>
-            <button class="btn-primary" data-opportunity="\${opportunity.id}" data-action="run">Run</button>
+            <button class="btn-ghost" data-opportunity="\${opportunity.id}" data-action="dismiss">Skip</button>
+            <button class="btn-soft" data-opportunity="\${opportunity.id}" data-action="focus">\${escapeHtml(preset.focusLabel)}</button>
+            <button class="btn-primary" data-opportunity="\${opportunity.id}" data-action="run">\${escapeHtml(preset.runLabel)}</button>
           </div>
         \`;
         els.cards.appendChild(card);
