@@ -8,7 +8,10 @@ Current contents:
 - `推荐系统/2026-04-24-生成式推荐与下一代推荐系统.md`
 - `推荐系统/2026-04-24-agent-native-recommendation-state-and-sdk.md`
 - `推荐系统/2026-04-24-recommendation-runtime-protocol.md`
+- `推荐系统/2026-04-24-recommendation-retrieval-design.md`
+- `推荐系统/2026-04-24-recommendation-policy-and-decision-layer.md`
 - `reference/recommendation-runtime-protocol.ts`
+- `reference/recommendation-runtime-services.ts`
 
 ## Directories
 
@@ -19,3 +22,4 @@ Current contents:
   - Agent-native recommendation architecture, state layering, and SDK abstractions
 - `reference/`
   - Reference protocol types and interfaces
+  - Retrieval and policy service interface sketches
