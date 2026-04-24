@@ -21,6 +21,7 @@ Current contents:
 - `reference/runtime/sample-usage.ts`
 - `reference/runtime/research-flow-validation-demo.mjs`
 - `reference/runtime/runtime-trace-sample.ts`
+- `reference/runtime/web-sdk-server.mjs`
 - `reference/runtime/storage/file-state-storage.mjs`
 - `reference/runtime/storage/in-memory-context-state-service.mjs`
 - `reference/runtime/data/research-flow/`
