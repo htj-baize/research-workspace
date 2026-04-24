@@ -116,6 +116,48 @@ function html(body) {
       display: grid;
       gap: 12px;
     }
+    .explain-rail {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .explain-item {
+      background: rgba(255,255,255,.7);
+      border: 1px solid rgba(30,29,27,.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .composer {
+      display: none;
+      gap: 10px;
+      margin-bottom: 14px;
+      background: rgba(255,250,240,.9);
+      border: 1px solid rgba(197,141,34,.25);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .composer.active {
+      display: grid;
+    }
+    .composer textarea {
+      width: 100%;
+      min-height: 96px;
+      resize: vertical;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 12px;
+      font: inherit;
+      background: white;
+      color: var(--text);
+    }
+    .composer-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .card {
       background: rgba(255,255,255,.78);
       border: 1px solid var(--line);
@@ -321,6 +363,17 @@ function feedPage() {
           </div>
           <div class="status" id="status">ready</div>
         </div>
+        <div class="composer" id="composer">
+          <div class="label">Clarification Prompt</div>
+          <div class="value" id="composer-title">-</div>
+          <div class="card-description" id="composer-copy">-</div>
+          <textarea id="composer-input" placeholder="Write a short answer that should change the next recommendation pass."></textarea>
+          <div class="composer-actions">
+            <button class="btn-primary" id="composer-submit">Submit Answer</button>
+            <button id="composer-cancel">Cancel</button>
+          </div>
+        </div>
+        <div class="explain-rail" id="explain-rail"></div>
         <div class="cards" id="cards"></div>
       </section>
 
@@ -359,6 +412,13 @@ function feedPage() {
       refresh: document.getElementById("refresh"),
       reset: document.getElementById("reset"),
       cards: document.getElementById("cards"),
+      composer: document.getElementById("composer"),
+      composerTitle: document.getElementById("composer-title"),
+      composerCopy: document.getElementById("composer-copy"),
+      composerInput: document.getElementById("composer-input"),
+      composerSubmit: document.getElementById("composer-submit"),
+      composerCancel: document.getElementById("composer-cancel"),
+      explainRail: document.getElementById("explain-rail"),
       status: document.getElementById("status"),
       intent: document.getElementById("intent"),
       goal: document.getElementById("goal"),
@@ -369,6 +429,7 @@ function feedPage() {
     };
 
     let latestDecision = null;
+    let pendingClarification = null;
 
     function setStatus(text) {
       els.status.textContent = text;
@@ -450,12 +511,23 @@ function feedPage() {
         .replaceAll("'", "&#39;");
     }
 
+    function openClarification(opportunity) {
+      const preset = cardPreset(opportunity);
+      pendingClarification = opportunity;
+      els.composer.classList.add("active");
+      els.composerTitle.textContent = opportunity.headline;
+      els.composerCopy.textContent = preset.prompt;
+      els.composerInput.value = "";
+      els.composerInput.focus();
+    }
+
     function renderDecision(payload) {
       latestDecision = payload;
       const decision = payload.decision;
       const trace = payload.trace || {};
       const summary = trace.sessionSummary || {};
       const working = trace.workingContext || {};
+      const explanations = payload.explanations || [];
 
       els.intent.textContent = decision.intent.name;
       els.goal.textContent = summary.currentGoal || decision.context.metadata?.currentGoal || decision.context.metadata?.userGoal || "-";
@@ -469,6 +541,19 @@ function feedPage() {
       );
       renderTags(els.signals, working.recentSignals || []);
       els.log.textContent = JSON.stringify(payload, null, 2);
+      els.explainRail.innerHTML = "";
+      for (const line of explanations) {
+        const item = document.createElement("div");
+        item.className = "explain-item";
+        item.textContent = line;
+        els.explainRail.appendChild(item);
+      }
+      if (explanations.length === 0) {
+        const item = document.createElement("div");
+        item.className = "explain-item";
+        item.textContent = "还没有明显的行为偏置，系统主要按当前 focus object 和基础供给来排序。";
+        els.explainRail.appendChild(item);
+      }
 
       els.cards.innerHTML = "";
       if (!decision.opportunities.length) {
@@ -544,6 +629,9 @@ function feedPage() {
       setStatus("resetting...");
       const strategy = els.strategy.value;
       await callJson("/feed/reset", { strategy });
+      pendingClarification = null;
+      els.composer.classList.remove("active");
+      els.composerInput.value = "";
       await refreshFeed();
       setStatus("session reset");
     }
@@ -551,6 +639,31 @@ function feedPage() {
     els.refresh.addEventListener("click", refreshFeed);
     els.reset.addEventListener("click", resetFeed);
     els.strategy.addEventListener("change", refreshFeed);
+    els.composerCancel.addEventListener("click", () => {
+      pendingClarification = null;
+      els.composer.classList.remove("active");
+      els.composerInput.value = "";
+      setStatus("clarification cancelled");
+    });
+    els.composerSubmit.addEventListener("click", async () => {
+      if (!pendingClarification) return;
+      const answer = els.composerInput.value.trim();
+      if (!answer) {
+        setStatus("please answer the clarification first");
+        return;
+      }
+      setStatus("clarifying...");
+      const strategy = els.strategy.value;
+      await callJson("/feed/clarify", {
+        strategy,
+        opportunity: pendingClarification,
+        answer,
+      });
+      pendingClarification = null;
+      els.composer.classList.remove("active");
+      els.composerInput.value = "";
+      await refreshFeed();
+    });
     els.cards.addEventListener("click", async (event) => {
       const target = event.target.closest("button[data-action]");
       if (!target || !latestDecision) return;
@@ -562,6 +675,11 @@ function feedPage() {
 
       setStatus(target.dataset.action + "...");
       if (target.dataset.action === "run") {
+        if ((opportunity.metadata?.mode || opportunity.kind) === "clarification") {
+          openClarification(opportunity);
+          setStatus("clarification needed");
+          return;
+        }
         await callJson("/feed/run", {
           strategy,
           opportunity,
@@ -752,12 +870,88 @@ function buildBehaviorWrites(action, opportunity) {
   return writes;
 }
 
+function buildClarificationWrites(opportunity, answer) {
+  return [
+    {
+      target: "session",
+      operation: "set",
+      path: "goal.current",
+      value: answer,
+      reason: "clarification_answer_applied",
+    },
+    {
+      target: "session",
+      operation: "append",
+      path: "acceptedPatterns",
+      value: opportunity.metadata?.mode ?? opportunity.kind,
+      reason: "clarification_answered_pattern",
+    },
+  ];
+}
+
+function buildExplanations(runtimeHandle, decision) {
+  const snapshot =
+    runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId) ?? {};
+  const summary = snapshot.summary ?? {};
+  const sessionState = snapshot.sessionState ?? {};
+  const trace = runtimeHandle.runtime.getLastDecisionTrace?.() ?? {};
+  const lines = [];
+  const rejected = summary.rejectedPatterns ?? [];
+  const accepted = summary.acceptedPatterns ?? [];
+  const recentArtifacts = summary.recentArtifacts ?? [];
+  const lastEvent = snapshot.events?.[snapshot.events.length - 1];
+
+  if (lastEvent?.type === "feed_dismissed") {
+    lines.push(
+      `你刚刚跳过了 ${(lastEvent.metadata?.mode ?? lastEvent.metadata?.kind ?? "上一张卡")}，所以系统把 intent 切向更保守的 ${decision.intent.name}。`
+    );
+  }
+
+  if (lastEvent?.type === "clarification_answered") {
+    lines.push("你刚补充了一个更明确的目标，系统把它写进 currentGoal，并据此重排了下一轮候选。");
+  }
+
+  if (lastEvent?.type === "outcome_executed") {
+    lines.push("你刚执行过一个动作并产出了 artifact，所以系统开始偏向更深一层的 continuation，而不是只做恢复。");
+  }
+
+  if (rejected.length > 0) {
+    lines.push(`当前 session 已记录拒绝模式：${rejected.join(" / ")}，命中这些模式的卡会被降权。`);
+  }
+
+  if (accepted.length > 0) {
+    lines.push(`当前 session 已记录接受模式：${accepted.join(" / ")}，相近路径会在后续推荐里被轻微放大。`);
+  }
+
+  if (recentArtifacts.length > 0) {
+    lines.push(`最近已有产物 ${recentArtifacts.slice(-1)[0]}，所以系统会优先考虑“推进已有成果”的下一步。`);
+  }
+
+  if (
+    decision.intent.name === "recover_flow" &&
+    decision.opportunities.some((item) => item.cost?.level === "high")
+  ) {
+    lines.push("虽然高成本候选还在池子里，但 recover_flow 阶段它们会被压到后面，不会优先顶到最前排。");
+  }
+
+  if (
+    trace.workingContext?.focusRefs?.length &&
+    sessionState.focusRefs &&
+    JSON.stringify(trace.workingContext.focusRefs) !== JSON.stringify(decision.context.focusObjectIds)
+  ) {
+    lines.push("当前 focus 已经被重写，下一轮推荐会围绕新的 focus object 重组。");
+  }
+
+  return lines.slice(0, 4);
+}
+
 async function snapshotPayload(runtimeHandle, strategy, decision = null) {
   return {
     strategy,
     decision,
     trace: runtimeHandle.runtime.getLastDecisionTrace?.(),
     session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
+    explanations: decision ? buildExplanations(runtimeHandle, decision) : [],
   };
 }
 
@@ -887,6 +1081,58 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (req.method === "POST" && url.pathname === "/feed/clarify") {
+      const body = await readJsonBody(req);
+      const strategy = getStrategy(url, body);
+      const runtimeHandle = await getRuntime(strategy);
+
+      if (!body.opportunity || !body.answer) {
+        return sendJson(res, 400, {
+          error: "Missing `opportunity` or `answer`",
+        });
+      }
+
+      const event = {
+        id: `event:clarification_answered:${Date.now()}`,
+        type: "clarification_answered",
+        timestampMs: Date.now(),
+        actor: "user",
+        objectRefs: [body.opportunity.id, ...(body.opportunity.sourceRefs ?? [])].slice(0, 3),
+        metadata: {
+          mode: body.opportunity.metadata?.mode,
+          answer: body.answer,
+        },
+      };
+      const writes = buildClarificationWrites(body.opportunity, body.answer);
+
+      await runtimeHandle.contextState.appendEvent({
+        sessionId: runtimeHandle.sessionId,
+        event,
+      });
+      await runtimeHandle.contextState.applyStateWrites({
+        sessionId: runtimeHandle.sessionId,
+        writes,
+      });
+      await runtimeHandle.contextState.compressSession({
+        sessionId: runtimeHandle.sessionId,
+        trigger: "feed_clarify",
+      });
+
+      const decision = await runtimeHandle.runtime.decideNext({
+        sessionId: runtimeHandle.sessionId,
+        userId: runtimeHandle.userId,
+        surface: runtimeHandle.surface,
+        limit: 3,
+      });
+
+      return sendJson(res, 200, {
+        ok: true,
+        appendedEvent: event,
+        writes,
+        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+      });
+    }
+
     if (req.method === "GET" && url.pathname === "/sdk/state") {
       const strategy = getStrategy(url);
       const runtimeHandle = await getRuntime(strategy);
@@ -962,6 +1208,7 @@ server.listen(PORT, () => {
           "POST /feed/next",
           "POST /feed/feedback",
           "POST /feed/run",
+          "POST /feed/clarify",
           "POST /feed/reset",
           "POST /sdk/decide",
           "POST /sdk/execute",

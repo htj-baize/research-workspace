@@ -489,6 +489,7 @@ export class InMemoryRecommendationRuntime
         operation: "set",
         path: "goal.current",
         value:
+          (input.context.metadata?.currentGoal as string | undefined) ??
           (input.context.metadata?.userGoal as string | undefined) ??
           (input.context.metadata?.goal as string | undefined),
         reason: "runtime_seed_goal",
