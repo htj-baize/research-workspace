@@ -2,6 +2,35 @@ export type Id = string;
 
 export type Metadata = Record<string, unknown>;
 
+export type IntentName =
+  | "explore"
+  | "compare"
+  | "decide"
+  | "continue_current_object"
+  | "deepen_current_object"
+  | "complete_task"
+  | "clarify_goal"
+  | "recover_flow";
+
+export type OpportunityKind =
+  | "item"
+  | "content"
+  | "continuation"
+  | "workflow_step"
+  | "tool_run"
+  | "clarification"
+  | "navigation";
+
+export type ActionType =
+  | "show"
+  | "open"
+  | "ask"
+  | "confirm"
+  | "execute"
+  | "generate"
+  | "navigate"
+  | "purchase_and_run";
+
 export type EventRef = {
   id: Id;
   type: string;
@@ -41,7 +70,7 @@ export type Context = {
 };
 
 export type Intent = {
-  name: string;
+  name: IntentName;
   confidence: number;
   horizon?: "immediate" | "session" | "longer";
   evidence?: string[];
@@ -50,7 +79,7 @@ export type Intent = {
 
 export type Opportunity = {
   id: Id;
-  kind: string;
+  kind: OpportunityKind;
   headline: string;
   reason: string;
   sourceRefs: Id[];
@@ -63,7 +92,7 @@ export type Opportunity = {
 
 export type Action = {
   id: Id;
-  type: string;
+  type: ActionType;
   input?: Record<string, unknown>;
   requiresConfirmation?: boolean;
   metadata?: Metadata;

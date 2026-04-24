@@ -127,6 +127,44 @@ type Intent = {
 - `metadata`
   - 扩展槽
 
+建议的 v0 taxonomy：
+
+```ts
+type IntentName =
+  | "explore"
+  | "compare"
+  | "decide"
+  | "continue_current_object"
+  | "deepen_current_object"
+  | "complete_task"
+  | "clarify_goal"
+  | "recover_flow";
+```
+
+说明：
+
+- `explore`
+  - 用户仍在发散与寻找方向
+- `compare`
+  - 用户在多个候选之间比较
+- `decide`
+  - 用户接近做出选择
+- `continue_current_object`
+  - 围绕当前对象继续推进
+- `deepen_current_object`
+  - 围绕当前对象做更深入推进
+- `complete_task`
+  - 用户当前目标是完成某项任务
+- `clarify_goal`
+  - 系统判断当前需要先澄清目标
+- `recover_flow`
+  - 用户停住、断流或犹豫，需要先恢复互动流
+
+建议：
+
+- 核心协议稳定这 8 个名字
+- 更细的领域语义通过 `metadata` 扩展，而不是直接进入核心 taxonomy
+
 ### `Opportunity`
 
 回答：
@@ -177,6 +215,41 @@ type Opportunity = {
 - `metadata`
   - 扩展槽
 
+建议的 v0 taxonomy：
+
+```ts
+type OpportunityKind =
+  | "item"
+  | "content"
+  | "continuation"
+  | "workflow_step"
+  | "tool_run"
+  | "clarification"
+  | "navigation";
+```
+
+说明：
+
+- `item`
+  - 标准 item 机会，如商品、视频、文章
+- `content`
+  - 更泛的内容单元，不要求是 catalog item
+- `continuation`
+  - 围绕当前对象或状态的下一步延续
+- `workflow_step`
+  - 某个任务流的下一步
+- `tool_run`
+  - 推荐直接调用工具或能力
+- `clarification`
+  - 推荐先问一个问题缩小空间
+- `navigation`
+  - 推荐跳转到另一个视图、详情或页面
+
+建议：
+
+- `Opportunity.kind` 保持较粗粒度
+- 具体领域模式通过 `metadata` 表达，例如 `continuationMode`、`itemType`
+
 ### `Action`
 
 回答：
@@ -207,6 +280,57 @@ type Action = {
   - 是否需要显式确认
 - `metadata`
   - 扩展槽
+
+建议的 v0 taxonomy：
+
+```ts
+type ActionType =
+  | "show"
+  | "open"
+  | "ask"
+  | "confirm"
+  | "execute"
+  | "generate"
+  | "navigate"
+  | "purchase_and_run";
+```
+
+说明：
+
+- `show`
+  - 纯展示，不立即跳转或执行
+- `open`
+  - 打开详情、卡片或具体对象
+- `ask`
+  - 通过问题澄清信息
+- `confirm`
+  - 进入确认层，等待用户明确同意
+- `execute`
+  - 执行一个通用动作
+- `generate`
+  - 触发内容或工件生成
+- `navigate`
+  - 导航到某个 surface 或区域
+- `purchase_and_run`
+  - 付费并立即执行
+
+可以粗略把它们分成两类：
+
+- 展示/交互型
+  - `show`
+  - `open`
+  - `ask`
+  - `confirm`
+  - `navigate`
+- 执行型
+  - `execute`
+  - `generate`
+  - `purchase_and_run`
+
+建议：
+
+- v0 先在 taxonomy 上区分展示型与执行型
+- 暂不把它们拆成不同协议对象
 
 ### `Outcome`
 
@@ -394,6 +518,33 @@ type Decision = {
 
 承接。
 
+## taxonomy 使用建议
+
+v0 的 taxonomy 目标不是完整覆盖所有业务，而是：
+
+- 让 runtime、SDK、policy、eval 至少能共享一层稳定语义
+- 让不同业务通过 `metadata` 做轻扩展
+- 避免所有团队各自发明字符串
+
+推荐的使用方式：
+
+```ts
+intent.name = "deepen_current_object";
+intent.metadata = { objectType: "character" };
+
+opportunity.kind = "continuation";
+opportunity.metadata = { continuationMode: "escalate_tension" };
+
+action.type = "generate";
+action.metadata = { outputKind: "new_work" };
+```
+
+也就是说：
+
+- 核心 taxonomy 保持粗粒度
+- 业务细节通过 `metadata` 表达
+- 等跨业务稳定收敛后，再考虑把部分 overlay 升级为正式字段
+
 ## `Studio Quest` 映射示例
 
 这套协议能直接映射到 `Studio Quest`：
@@ -429,4 +580,3 @@ type Decision = {
 > 下一代推荐系统的公共抽象，不应再以 `user -> item` 为核心，而应以 `context -> intent -> opportunity -> action -> outcome` 的决策闭环为核心。
 
 这让协议既能覆盖传统推荐，也能覆盖 agent-native 推荐与 continuation recommendation。
-
