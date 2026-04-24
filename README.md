@@ -17,6 +17,7 @@ Current contents:
 - `reference/recommendation-runtime-candidate.ts`
 - `reference/runtime/default-services.ts`
 - `reference/runtime/in-memory-recommendation-runtime.ts`
+- `reference/runtime/sample-usage.ts`
 
 ## Directories
 
