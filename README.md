@@ -19,6 +19,8 @@ Current contents:
 - `reference/runtime/default-services.ts`
 - `reference/runtime/in-memory-recommendation-runtime.ts`
 - `reference/runtime/sample-usage.ts`
+- `reference/runtime/research-flow-validation-demo.mjs`
+- `推荐系统/2026-04-24-research-flow-vertical-slice.md`
 
 ## Directories
 
