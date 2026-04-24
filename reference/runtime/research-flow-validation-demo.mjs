@@ -1,4 +1,5 @@
 import { loadResearchFlowStorage } from "./storage/file-state-storage.mjs";
+import { InMemoryContextStateService } from "./storage/in-memory-context-state-service.mjs";
 
 function inferIntent(context) {
   const hasFocus = context.focusObjectIds.length > 0;
@@ -36,6 +37,78 @@ function inferIntent(context) {
     confidence: 0.58,
     evidence: ["default_fallback"],
   };
+}
+
+function deriveStateWrites(context, intent, materials, execution) {
+  const writes = [
+    {
+      target: "session",
+      operation: "set",
+      path: "goal.current",
+      value: context.metadata?.userGoal,
+      reason: "seed_current_goal",
+    },
+    {
+      target: "session",
+      operation: "set",
+      path: "topic",
+      value: context.metadata?.topic,
+      reason: "seed_topic",
+    },
+    {
+      target: "session",
+      operation: "set",
+      path: "focusRefs",
+      value: context.focusObjectIds,
+      reason: "seed_focus_refs",
+    },
+    {
+      target: "working",
+      operation: "set",
+      path: "intent",
+      value: intent,
+      reason: "resolved_intent",
+    },
+    {
+      target: "working",
+      operation: "set",
+      path: "constraints",
+      value: materials.constraints.map((item) => item.id),
+      reason: "retrieved_constraints",
+    },
+  ];
+
+  if (intent.name === "recover_flow") {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "rejectedPatterns",
+      value: "high_cost_tool_run",
+      reason: "recover_flow_detected",
+    });
+  }
+
+  if (execution?.selected) {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "acceptedPatterns",
+      value: execution.selected.metadata?.mode ?? execution.selected.kind,
+      reason: "selected_opportunity",
+    });
+  }
+
+  if (execution?.artifact) {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "recentArtifacts",
+      value: execution.artifact.id,
+      reason: "execution_artifact_created",
+    });
+  }
+
+  return writes;
 }
 
 function retrieveMaterials(strategy, context, intent, storage) {
@@ -225,7 +298,7 @@ function executeSelection(decision) {
   };
 }
 
-function runStrategy(strategy) {
+async function runStrategy(strategy) {
   const storage = loadResearchFlowStorage(strategy);
   const context = {
     ...storage.session,
@@ -234,11 +307,48 @@ function runStrategy(strategy) {
       stateStrategy: strategy,
     },
   };
+  const contextState = new InMemoryContextStateService({
+    sessions: [
+      {
+        sessionId: context.sessionId,
+      },
+    ],
+  });
+
+  for (const event of context.recentEvents ?? []) {
+    await contextState.appendEvent({
+      sessionId: context.sessionId,
+      event: {
+        ...event,
+        actor: "user",
+      },
+    });
+  }
+
   const intent = inferIntent(context);
   const materials = retrieveMaterials(strategy, context, intent, storage);
   const opportunities = constructOpportunities(context, intent, materials);
   const decision = decide(strategy, context, intent, opportunities);
   const execution = executeSelection(decision);
+  const writes = deriveStateWrites(context, intent, materials, execution);
+
+  await contextState.applyStateWrites({
+    sessionId: context.sessionId,
+    writes,
+  });
+
+  const sessionSummary = await contextState.compressSession({
+    sessionId: context.sessionId,
+    trigger: "vertical_slice_demo",
+  });
+
+  const workingContext = await contextState.buildWorkingContext({
+    sessionId: context.sessionId,
+  });
+
+  const promotionDecisions = await contextState.promoteMemory({
+    sessionId: context.sessionId,
+  });
 
   return {
     strategy,
@@ -263,14 +373,21 @@ function runStrategy(strategy) {
     })),
     suppressed: decision.suppressed,
     execution,
+    writes,
+    sessionSummary,
+    workingContext,
+    promotionDecisions,
   };
 }
 
-function main() {
+async function main() {
   const strategies = ["cloud-heavy", "hybrid", "local-heavy"];
-  const results = strategies.map((strategy) => runStrategy(strategy));
+  const results = [];
+  for (const strategy of strategies) {
+    results.push(await runStrategy(strategy));
+  }
 
   console.log(JSON.stringify(results, null, 2));
 }
 
-main();
+void main();

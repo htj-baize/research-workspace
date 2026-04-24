@@ -37,7 +37,7 @@ context
 
 对应的可执行 demo 在：
 
-- [research-flow-validation-demo.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/research-flow-validation-demo.mjs)
+- [research-flow-validation-demo.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/research-flow-validation-demo.mjs)
 
 这个 demo 现在做了四件事：
 
@@ -150,14 +150,14 @@ node reference/runtime/research-flow-validation-demo.mjs
 
 当前 vertical slice 的存储数据位于：
 
-- [file-state-storage.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/storage/file-state-storage.mjs)
-- [local/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/session.json)
-- [cloud/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/session.json)
-- [local/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/memory.json)
-- [cloud/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/memory.json)
-- [local/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/local/constraints.json)
-- [cloud/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/cloud/constraints.json)
-- [shared/supply.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/repo/reference/runtime/data/research-flow/shared/supply.json)
+- [file-state-storage.mjs](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/storage/file-state-storage.mjs)
+- [local/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/local/session.json)
+- [cloud/session.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/cloud/session.json)
+- [local/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/local/memory.json)
+- [cloud/memory.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/cloud/memory.json)
+- [local/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/local/constraints.json)
+- [cloud/constraints.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/cloud/constraints.json)
+- [shared/supply.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/reference/runtime/data/research-flow/shared/supply.json)
 
 也就是说，这个 demo 现在已经具备：
 

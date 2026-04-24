@@ -14,14 +14,21 @@ import type {
   RecommendationSdk,
   ResolveIntentInput,
   SelectionExecutionResult,
-} from "../recommendation-runtime-protocol";
-import type { CandidateConstructionService } from "../recommendation-runtime-candidate";
+} from "../recommendation-runtime-protocol.ts";
+import type { CandidateConstructionService } from "../recommendation-runtime-candidate.ts";
+import type {
+  ContextEvent,
+  PromotionDecision,
+  SessionSummary,
+  StateWrite,
+  WorkingContext,
+} from "../recommendation-runtime-context.ts";
 import type {
   PolicyService,
   RetrievalQuery,
   RetrievalService,
-} from "../recommendation-runtime-services";
-import { buildDefaultRuntimeServices } from "./default-services";
+} from "../recommendation-runtime-services.ts";
+import { buildDefaultRuntimeServices } from "./default-services.ts";
 
 export type SessionSnapshot = {
   sessionId: string;
@@ -41,6 +48,36 @@ export type InMemoryRuntimeConfig = {
     candidateConstruction: CandidateConstructionService;
     policy: PolicyService;
   };
+  contextState?: ContextStateServiceLike;
+};
+
+export type RuntimeDecisionTrace = {
+  writes: StateWrite[];
+  sessionSummary?: SessionSummary;
+  workingContext?: WorkingContext;
+  promotionDecisions?: PromotionDecision[];
+};
+
+export type RuntimeExecutionTrace = RuntimeDecisionTrace & {
+  appendedEvent?: ContextEvent;
+};
+
+type ContextStateServiceLike = {
+  appendEvent(input: { sessionId: string; event: ContextEvent }): Promise<void>;
+  applyStateWrites(input: {
+    sessionId: string;
+    writes: StateWrite[];
+  }): Promise<void>;
+  compressSession(input: {
+    sessionId: string;
+    trigger: string;
+  }): Promise<SessionSummary>;
+  promoteMemory(input: {
+    sessionId: string;
+  }): Promise<PromotionDecision[]>;
+  buildWorkingContext(input: {
+    sessionId: string;
+  }): Promise<WorkingContext>;
 };
 
 export class InMemoryRecommendationRuntime
@@ -51,6 +88,9 @@ export class InMemoryRecommendationRuntime
   private readonly retrieval: RetrievalService;
   private readonly candidateConstruction: CandidateConstructionService;
   private readonly policy: PolicyService;
+  private readonly contextState?: ContextStateServiceLike;
+  private lastDecisionTrace?: RuntimeDecisionTrace;
+  private lastExecutionTrace?: RuntimeExecutionTrace;
 
   constructor(config: InMemoryRuntimeConfig = {}) {
     for (const session of config.sessions ?? []) {
@@ -66,6 +106,7 @@ export class InMemoryRecommendationRuntime
     this.candidateConstruction =
       config.services?.candidateConstruction ?? defaults.candidateConstruction;
     this.policy = config.services?.policy ?? defaults.policy;
+    this.contextState = config.contextState;
   }
 
   async getContext(input: ContextQuery = {}): Promise<Context> {
@@ -247,6 +288,27 @@ export class InMemoryRecommendationRuntime
         },
       ],
     });
+
+    if (this.contextState) {
+      const event: ContextEvent = {
+        id: `event_${input.outcome.actionId}_${existingEvents.length}`,
+        type: `outcome_${input.outcome.status}`,
+        timestampMs: Date.now(),
+        actor: "system",
+        objectRefs: input.outcome.artifactRefs,
+        metadata: input.outcome.metadata,
+      };
+
+      await this.contextState.appendEvent({
+        sessionId,
+        event,
+      });
+
+      this.lastExecutionTrace = {
+        ...(this.lastExecutionTrace ?? { writes: [] }),
+        appendedEvent: event,
+      };
+    }
   }
 
   async decideNext(input: DecideNextInput = {}): Promise<Decision> {
@@ -262,11 +324,39 @@ export class InMemoryRecommendationRuntime
       metadata: input.metadata,
     });
 
-    return {
+    const decision: Decision = {
       context,
       intent,
       opportunities,
     };
+
+    if (this.contextState) {
+      const writes = this.buildDecisionStateWrites({
+        context,
+        intent,
+      });
+
+      await this.contextState.applyStateWrites({
+        sessionId: context.sessionId,
+        writes,
+      });
+
+      const sessionSummary = await this.contextState.compressSession({
+        sessionId: context.sessionId,
+        trigger: "runtime_decide_next",
+      });
+      const workingContext = await this.contextState.buildWorkingContext({
+        sessionId: context.sessionId,
+      });
+
+      this.lastDecisionTrace = {
+        writes,
+        sessionSummary,
+        workingContext,
+      };
+    }
+
+    return decision;
   }
 
   async executeSelection(
@@ -290,11 +380,132 @@ export class InMemoryRecommendationRuntime
       metadata: input.metadata,
     });
 
+    if (this.contextState) {
+      const writes = this.buildExecutionStateWrites({
+        opportunity: input.opportunity,
+        outcomeStatus: execution.outcome.status,
+        artifactRefs: execution.outcome.artifactRefs ?? [],
+      });
+
+      await this.contextState.applyStateWrites({
+        sessionId: context.sessionId,
+        writes,
+      });
+
+      const sessionSummary = await this.contextState.compressSession({
+        sessionId: context.sessionId,
+        trigger: "runtime_execute_selection",
+      });
+      const workingContext = await this.contextState.buildWorkingContext({
+        sessionId: context.sessionId,
+      });
+      const promotionDecisions = await this.contextState.promoteMemory({
+        sessionId: context.sessionId,
+      });
+
+      this.lastExecutionTrace = {
+        writes,
+        sessionSummary,
+        workingContext,
+        promotionDecisions,
+        appendedEvent: this.lastExecutionTrace?.appendedEvent,
+      };
+    }
+
     return {
       action,
       outcome: execution.outcome,
       artifacts: execution.artifacts,
     };
   }
-}
 
+  getLastDecisionTrace(): RuntimeDecisionTrace | undefined {
+    return this.lastDecisionTrace;
+  }
+
+  getLastExecutionTrace(): RuntimeExecutionTrace | undefined {
+    return this.lastExecutionTrace;
+  }
+
+  private buildDecisionStateWrites(input: {
+    context: Context;
+    intent: Intent;
+  }): StateWrite[] {
+    const writes: StateWrite[] = [
+      {
+        target: "session",
+        operation: "set",
+        path: "goal.current",
+        value:
+          (input.context.metadata?.userGoal as string | undefined) ??
+          (input.context.metadata?.goal as string | undefined),
+        reason: "runtime_seed_goal",
+      },
+      {
+        target: "session",
+        operation: "set",
+        path: "focusRefs",
+        value: input.context.focusObjectIds,
+        reason: "runtime_seed_focus_refs",
+      },
+      {
+        target: "working",
+        operation: "set",
+        path: "intent",
+        value: input.intent,
+        reason: "runtime_resolved_intent",
+      },
+      {
+        target: "working",
+        operation: "set",
+        path: "constraints",
+        value: (input.context.constraints ?? []).map((constraint) => constraint.id),
+        reason: "runtime_context_constraints",
+      },
+    ];
+
+    if (input.intent.name === "recover_flow") {
+      writes.push({
+        target: "session",
+        operation: "append",
+        path: "rejectedPatterns",
+        value: "recover_flow",
+        reason: "runtime_recover_flow",
+      });
+    }
+
+    return writes;
+  }
+
+  private buildExecutionStateWrites(input: {
+    opportunity: ExecuteSelectionInput["opportunity"];
+    outcomeStatus: SelectionExecutionResult["outcome"]["status"];
+    artifactRefs: string[];
+  }): StateWrite[] {
+    const writes: StateWrite[] = [
+      {
+        target: "session",
+        operation: "append",
+        path: "acceptedPatterns",
+        value:
+          (input.opportunity.metadata?.mode as string | undefined) ??
+          input.opportunity.kind,
+        reason: "runtime_selected_opportunity",
+      },
+    ];
+
+    if (input.outcomeStatus === "executed" && input.artifactRefs.length > 0) {
+      for (const artifactRef of input.artifactRefs) {
+        writes.push({
+          target: "session",
+          operation: "append",
+          path: "recentArtifacts",
+          value: artifactRef,
+          reason: "runtime_execution_artifact",
+        });
+      }
+    }
+
+    return writes;
+  }
+}
