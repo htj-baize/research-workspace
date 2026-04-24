@@ -24,11 +24,22 @@ import type {
   WorkingContext,
 } from "../core/recommendation-runtime-context.ts";
 import type {
+  FeedbackEvent,
+  FeedbackInterpreter,
+  FeedbackProjector,
+  FeedbackSignal,
+  StateProjection,
+} from "../core/recommendation-runtime-feedback.ts";
+import type {
   PolicyService,
   RetrievalQuery,
   RetrievalService,
 } from "../core/recommendation-runtime-services.ts";
 import { buildDefaultRuntimeServices } from "./default-services.ts";
+import {
+  RuleBasedFeedbackInterpreter,
+  RuleBasedFeedbackProjector,
+} from "./default-feedback-services.ts";
 
 export type SessionSnapshot = {
   sessionId: string;
@@ -48,6 +59,10 @@ export type InMemoryRuntimeConfig = {
     candidateConstruction: CandidateConstructionService;
     policy: PolicyService;
   };
+  feedback?: {
+    interpreter: FeedbackInterpreter;
+    projector: FeedbackProjector;
+  };
   contextState?: ContextStateServiceLike;
 };
 
@@ -60,6 +75,15 @@ export type RuntimeDecisionTrace = {
 
 export type RuntimeExecutionTrace = RuntimeDecisionTrace & {
   appendedEvent?: ContextEvent;
+};
+
+export type RuntimeFeedbackTrace = {
+  event: FeedbackEvent;
+  signals: FeedbackSignal[];
+  projections: StateProjection[];
+  sessionSummary?: SessionSummary;
+  workingContext?: WorkingContext;
+  promotionDecisions?: PromotionDecision[];
 };
 
 type ContextStateServiceLike = {
@@ -93,9 +117,12 @@ export class InMemoryRecommendationRuntime
   private readonly retrieval: RetrievalService;
   private readonly candidateConstruction: CandidateConstructionService;
   private readonly policy: PolicyService;
+  private readonly feedbackInterpreter: FeedbackInterpreter;
+  private readonly feedbackProjector: FeedbackProjector;
   private readonly contextState?: ContextStateServiceLike;
   private lastDecisionTrace?: RuntimeDecisionTrace;
   private lastExecutionTrace?: RuntimeExecutionTrace;
+  private lastFeedbackTrace?: RuntimeFeedbackTrace;
 
   constructor(config: InMemoryRuntimeConfig = {}) {
     for (const session of config.sessions ?? []) {
@@ -111,6 +138,10 @@ export class InMemoryRecommendationRuntime
     this.candidateConstruction =
       config.services?.candidateConstruction ?? defaults.candidateConstruction;
     this.policy = config.services?.policy ?? defaults.policy;
+    this.feedbackInterpreter =
+      config.feedback?.interpreter ?? new RuleBasedFeedbackInterpreter();
+    this.feedbackProjector =
+      config.feedback?.projector ?? new RuleBasedFeedbackProjector();
     this.contextState = config.contextState;
   }
 
@@ -477,6 +508,97 @@ export class InMemoryRecommendationRuntime
 
   getLastExecutionTrace(): RuntimeExecutionTrace | undefined {
     return this.lastExecutionTrace;
+  }
+
+  getLastFeedbackTrace(): RuntimeFeedbackTrace | undefined {
+    return this.lastFeedbackTrace;
+  }
+
+  async handleFeedback(input: {
+    event: FeedbackEvent;
+    context?: Context;
+    metadata?: Record<string, unknown>;
+  }): Promise<RuntimeFeedbackTrace> {
+    const sessionId = input.context?.sessionId ?? "default_session";
+    const previous = this.sessionStore.get(sessionId) ?? { sessionId };
+    const existingEvents = previous.recentEvents ?? [];
+
+    this.sessionStore.set(sessionId, {
+      ...previous,
+      recentEvents: [
+        ...existingEvents,
+        {
+          id: input.event.id,
+          type: input.event.type,
+          timestampMs: input.event.timestampMs,
+          objectRefs: input.event.objectRefs,
+          metadata: input.event.metadata,
+        },
+      ],
+    });
+
+    const signals = await this.feedbackInterpreter.interpret({
+      event: input.event,
+      sessionId,
+      metadata: input.metadata,
+    });
+    const projections = await this.feedbackProjector.project({
+      event: input.event,
+      signals,
+      sessionId,
+      metadata: input.metadata,
+    });
+
+    if (!this.contextState) {
+      const trace = {
+        event: input.event,
+        signals,
+        projections,
+      };
+      this.lastFeedbackTrace = trace;
+      return trace;
+    }
+
+    await this.contextState.appendEvent({
+      sessionId,
+      event: {
+        id: input.event.id,
+        type: input.event.type,
+        timestampMs: input.event.timestampMs,
+        actor: input.event.actor,
+        objectRefs: input.event.objectRefs,
+        metadata: input.event.metadata,
+      },
+    });
+
+    if (projections.length > 0) {
+      await this.contextState.applyStateWrites({
+        sessionId,
+        writes: projections,
+      });
+    }
+
+    const sessionSummary = await this.contextState.compressSession({
+      sessionId,
+      trigger: input.event.type,
+    });
+    const workingContext = await this.contextState.buildWorkingContext({
+      sessionId,
+    });
+    const promotionDecisions = await this.contextState.promoteMemory({
+      sessionId,
+    });
+
+    const trace = {
+      event: input.event,
+      signals,
+      projections,
+      sessionSummary,
+      workingContext,
+      promotionDecisions,
+    };
+    this.lastFeedbackTrace = trace;
+    return trace;
   }
 
   private buildDecisionStateWrites(input: {

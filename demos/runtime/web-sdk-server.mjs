@@ -912,7 +912,7 @@ function getScenario(url, body = {}) {
   return scenario;
 }
 
-function buildBehaviorEvent(action, opportunity) {
+function buildFeedbackEvent(action, opportunity, extraMetadata = {}) {
   const type =
     action === "dismiss"
       ? "feed_dismissed"
@@ -930,6 +930,8 @@ function buildBehaviorEvent(action, opportunity) {
 
   return {
     id: `event:${type}:${Date.now()}`,
+    action,
+    targetRef: opportunity.id,
     type,
     timestampMs: Date.now(),
     actor: "user",
@@ -939,75 +941,14 @@ function buildBehaviorEvent(action, opportunity) {
       mode: opportunity.metadata?.mode,
       kind: opportunity.kind,
       action,
+      focusRefs:
+        action === "focus" || action === "open"
+          ? (opportunity.sourceRefs ?? []).slice(1)
+          : undefined,
+      artifactRef: action === "save" ? `saved:${opportunity.id}` : undefined,
+      ...extraMetadata,
     },
   };
-}
-
-function buildBehaviorWrites(action, opportunity) {
-  const mode = opportunity.metadata?.mode ?? opportunity.kind;
-  const feedbackKey = opportunity.metadata?.feedbackKey ?? mode;
-  const writes = [];
-
-  if (action === "dismiss") {
-    writes.push({
-      target: "session",
-      operation: "append",
-      path: "rejectedPatterns",
-      value: feedbackKey,
-      reason: "feed_dismissed_pattern",
-    });
-  }
-
-  if (action === "focus" || action === "open") {
-    writes.push({
-      target: "session",
-      operation: "set",
-      path: "focusRefs",
-      value: opportunity.sourceRefs.slice(1),
-      reason: "feed_focused_source_refs",
-    });
-  }
-
-  if (action === "like" || action === "save" || action === "watch") {
-    writes.push({
-      target: "session",
-      operation: "append",
-      path: "acceptedPatterns",
-      value: feedbackKey,
-      reason: `feed_${action}_pattern`,
-    });
-  }
-
-  if (action === "save") {
-    writes.push({
-      target: "session",
-      operation: "append",
-      path: "recentArtifacts",
-      value: `saved:${opportunity.id}`,
-      reason: "feed_saved_artifact",
-    });
-  }
-
-  return writes;
-}
-
-function buildClarificationWrites(opportunity, answer) {
-  return [
-    {
-      target: "session",
-      operation: "set",
-      path: "goal.current",
-      value: answer,
-      reason: "clarification_answer_applied",
-    },
-    {
-      target: "session",
-      operation: "append",
-      path: "acceptedPatterns",
-      value: opportunity.metadata?.mode ?? opportunity.kind,
-      reason: "clarification_answered_pattern",
-    },
-  ];
 }
 
 function buildExplanations(runtimeHandle, decision, scenario) {
@@ -1150,24 +1091,15 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const event = buildBehaviorEvent(body.action, body.opportunity);
-      const writes = buildBehaviorWrites(body.action, body.opportunity);
-
-      await runtimeHandle.contextState.appendEvent({
-        sessionId: runtimeHandle.sessionId,
+      const event = buildFeedbackEvent(body.action, body.opportunity);
+      const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
         event,
-      });
-
-      if (writes.length > 0) {
-        await runtimeHandle.contextState.applyStateWrites({
+        context: {
           sessionId: runtimeHandle.sessionId,
-          writes,
-        });
-      }
-
-      await runtimeHandle.contextState.compressSession({
-        sessionId: runtimeHandle.sessionId,
-        trigger: `feed_${body.action}`,
+          userId: runtimeHandle.userId,
+          surface: runtimeHandle.surface,
+          focusObjectIds: [],
+        },
       });
 
       const decision = await runtimeHandle.runtime.decideNext({
@@ -1180,8 +1112,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         ok: true,
         action: body.action,
-        appendedEvent: event,
-        writes,
+        feedbackTrace,
         ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
     }
@@ -1209,22 +1140,10 @@ const server = http.createServer(async (req, res) => {
       let execution;
       if (scenario === "social-feed") {
         const action = body.action || "open";
-        const event = buildBehaviorEvent(action, body.opportunity);
-        const writes = buildBehaviorWrites(action, body.opportunity);
-
-        await runtimeHandle.contextState.appendEvent({
-          sessionId: runtimeHandle.sessionId,
+        const event = buildFeedbackEvent(action, body.opportunity);
+        const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
           event,
-        });
-        if (writes.length > 0) {
-          await runtimeHandle.contextState.applyStateWrites({
-            sessionId: runtimeHandle.sessionId,
-            writes,
-          });
-        }
-        await runtimeHandle.contextState.compressSession({
-          sessionId: runtimeHandle.sessionId,
-          trigger: `feed_${action}`,
+          context,
         });
 
         execution = {
@@ -1243,8 +1162,7 @@ const server = http.createServer(async (req, res) => {
             ],
             artifactRefs: action === "save" ? [`saved:${body.opportunity.id}`] : [],
           },
-          appendedEvent: event,
-          writes,
+          feedbackTrace,
         };
       } else {
         execution = await runtimeHandle.runtime.executeSelection({
@@ -1266,10 +1184,7 @@ const server = http.createServer(async (req, res) => {
         execution,
         executionTrace:
           scenario === "social-feed"
-            ? {
-                appendedEvent: execution.appendedEvent,
-                writes: execution.writes,
-              }
+            ? execution.feedbackTrace
             : runtimeHandle.runtime.getLastExecutionTrace?.(),
         ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
@@ -1288,29 +1203,20 @@ const server = http.createServer(async (req, res) => {
       }
 
       const event = {
-        id: `event:clarification_answered:${Date.now()}`,
-        type: "clarification_answered",
-        timestampMs: Date.now(),
-        actor: "user",
-        objectRefs: [body.opportunity.id, ...(body.opportunity.sourceRefs ?? [])].slice(0, 3),
-        metadata: {
-          mode: body.opportunity.metadata?.mode,
+        ...buildFeedbackEvent("clarify", body.opportunity, {
           answer: body.answer,
-        },
+          goal: body.answer,
+        }),
+        type: "clarification_answered",
       };
-      const writes = buildClarificationWrites(body.opportunity, body.answer);
-
-      await runtimeHandle.contextState.appendEvent({
-        sessionId: runtimeHandle.sessionId,
+      const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
         event,
-      });
-      await runtimeHandle.contextState.applyStateWrites({
-        sessionId: runtimeHandle.sessionId,
-        writes,
-      });
-      await runtimeHandle.contextState.compressSession({
-        sessionId: runtimeHandle.sessionId,
-        trigger: "feed_clarify",
+        context: {
+          sessionId: runtimeHandle.sessionId,
+          userId: runtimeHandle.userId,
+          surface: runtimeHandle.surface,
+          focusObjectIds: [],
+        },
       });
 
       const decision = await runtimeHandle.runtime.decideNext({
@@ -1322,8 +1228,7 @@ const server = http.createServer(async (req, res) => {
 
       return sendJson(res, 200, {
         ok: true,
-        appendedEvent: event,
-        writes,
+        feedbackTrace,
         ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
     }

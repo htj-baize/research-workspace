@@ -21,6 +21,7 @@ This directory holds the runtime pieces that are meant to become the packaged SD
   - Shared protocol and service contracts.
   - Feedback protocol for event -> signal -> state projection.
 - `runtime/`
-  - Default retrieval, candidate construction, policy, and in-memory runtime implementation.
+  - Default retrieval, candidate construction, policy, and feedback services.
+  - In-memory runtime implementation, including `handleFeedback()` for feedback -> signal -> projection -> context-state writes.
 - `storage/`
   - File-backed and in-memory state helpers used by the demos and validation slices.

@@ -175,6 +175,14 @@ event
 -> next recommendation pass
 ```
 
+当前 `framework/` 里已经落了第一版 reference code：
+
+- `framework/core/recommendation-runtime-feedback.ts`
+- `framework/runtime/default-feedback-services.ts`
+- `framework/runtime/in-memory-recommendation-runtime.ts`
+
+其中 `InMemoryRecommendationRuntime.handleFeedback()` 已经把这条链打通。
+
 ---
 
 ## 和 demo 的边界
