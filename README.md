@@ -41,3 +41,4 @@ Current contents:
   - Reference protocol types and interfaces
   - Retrieval and policy service interface sketches
   - Candidate construction and runtime skeletons
+  - Minimal web feed demo for behavior-driven recommendation testing

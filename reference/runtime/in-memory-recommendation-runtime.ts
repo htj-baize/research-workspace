@@ -78,6 +78,11 @@ type ContextStateServiceLike = {
   buildWorkingContext(input: {
     sessionId: string;
   }): Promise<WorkingContext>;
+  getSessionSnapshot?(sessionId: string): {
+    events?: Context["recentEvents"];
+    sessionState?: Record<string, unknown>;
+    summary?: SessionSummary | null;
+  } | undefined;
 };
 
 export class InMemoryRecommendationRuntime
@@ -112,16 +117,33 @@ export class InMemoryRecommendationRuntime
   async getContext(input: ContextQuery = {}): Promise<Context> {
     const sessionId = input.sessionId ?? "default_session";
     const session = this.sessionStore.get(sessionId);
+    const snapshot = this.contextState?.getSessionSnapshot?.(sessionId);
+    const snapshotState = snapshot?.sessionState ?? {};
+    const snapshotSummary = snapshot?.summary ?? undefined;
+    const focusObjectIds =
+      (snapshotState.focusRefs as string[] | undefined) ??
+      snapshotSummary?.currentFocusRefs ??
+      session?.focusObjectIds ??
+      [];
+    const recentEvents =
+      snapshot?.events ?? session?.recentEvents ?? [];
 
     return {
       sessionId,
       userId: input.userId ?? session?.userId,
       surface: input.surface ?? session?.surface ?? "default",
-      focusObjectIds: session?.focusObjectIds ?? [],
-      recentEvents: session?.recentEvents ?? [],
+      focusObjectIds,
+      recentEvents,
       constraints: session?.constraints ?? [],
       metadata: {
         ...session?.metadata,
+        currentGoal:
+          (snapshotState.goal as { current?: string } | undefined)?.current ??
+          snapshotSummary?.currentGoal,
+        acceptedPatterns: snapshotSummary?.acceptedPatterns ?? [],
+        rejectedPatterns: snapshotSummary?.rejectedPatterns ?? [],
+        recentArtifacts: snapshotSummary?.recentArtifacts ?? [],
+        inferredIntent: snapshotSummary?.inferredIntent,
         ...input.metadata,
       },
     };
@@ -141,6 +163,36 @@ export class InMemoryRecommendationRuntime
 
     const focusCount = input.context.focusObjectIds.length;
     const surface = input.context.surface;
+    const recentReject = (input.context.recentEvents ?? []).some(
+      (event) =>
+        event.type === "outcome_rejected" ||
+        event.type === "feed_dismissed" ||
+        event.type === "feed_skipped"
+    );
+    const rejectedPatterns =
+      (input.context.metadata?.rejectedPatterns as string[] | undefined) ?? [];
+    const recentArtifacts =
+      (input.context.metadata?.recentArtifacts as string[] | undefined) ?? [];
+
+    if (recentReject || rejectedPatterns.length > 0) {
+      return {
+        name: "recover_flow",
+        confidence: 0.82,
+        horizon: "immediate",
+        evidence: ["recent_reject_signal"],
+        metadata: { surface },
+      };
+    }
+
+    if (recentArtifacts.length > 0) {
+      return {
+        name: "deepen_current_object",
+        confidence: 0.76,
+        horizon: "session",
+        evidence: ["recent_artifact_created"],
+        metadata: { surface },
+      };
+    }
 
     if (focusCount > 0) {
       return {

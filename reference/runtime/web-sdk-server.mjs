@@ -10,6 +10,418 @@ import { loadResearchFlowStorage } from "./storage/file-state-storage.mjs";
 import { InMemoryContextStateService } from "./storage/in-memory-context-state-service.mjs";
 
 const PORT = Number(process.env.PORT || 4321);
+const VALID_STRATEGIES = ["cloud-heavy", "hybrid", "local-heavy"];
+
+function html(body) {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recommendation Feed Demo</title>
+  <style>
+    :root {
+      --bg: #f4efe7;
+      --panel: #fffaf2;
+      --line: #d9cdbd;
+      --text: #1e1d1b;
+      --muted: #6b675f;
+      --accent: #b14d2f;
+      --accent-2: #315a73;
+      --green: #2f6b45;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      background:
+        radial-gradient(circle at top left, #fff5e2 0, transparent 28%),
+        linear-gradient(180deg, #f4efe7 0%, #ece2d1 100%);
+      color: var(--text);
+    }
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+    .hero {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .kicker {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 56px);
+      line-height: 0.96;
+      letter-spacing: -0.03em;
+    }
+    .sub {
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, .9fr);
+      gap: 18px;
+    }
+    .panel {
+      background: color-mix(in srgb, var(--panel) 88%, white);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 12px 40px rgba(53, 42, 25, 0.07);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    select, button {
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 10px 14px;
+      font: inherit;
+      background: white;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      transition: transform .12s ease, background .12s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+    }
+    .cards {
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      background: rgba(255,255,255,.78);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+    }
+    .card-title {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.05;
+    }
+    .pill {
+      white-space: nowrap;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: white;
+      background: var(--accent-2);
+    }
+    .meta, .trace-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .trace-list span,
+    .meta span {
+      background: rgba(49,90,115,.08);
+      border-radius: 999px;
+      padding: 5px 10px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .side-block {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .label {
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .value {
+      font-size: 20px;
+      line-height: 1.15;
+    }
+    .log {
+      background: #1f1d1b;
+      color: #efe6d9;
+      border-radius: 16px;
+      padding: 12px;
+      min-height: 220px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .status {
+      color: var(--green);
+      font-size: 13px;
+    }
+    .empty {
+      padding: 30px 10px;
+      text-align: center;
+      color: var(--muted);
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  ${body}
+</body>
+</html>`;
+}
+
+function feedPage() {
+  return html(`
+  <div class="shell">
+    <div class="hero">
+      <div class="kicker">Agent-Native Recommendation</div>
+      <h1>Behavior-Driven Feed Demo</h1>
+      <div class="sub">
+        这个页面不是看 SDK JSON，而是模拟一个真实 feed：你可以刷新、跳过、运行或聚焦某个推荐，系统会把行为写回 session summary，再影响下一轮推荐。
+      </div>
+    </div>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="toolbar">
+          <div class="controls">
+            <select id="strategy">
+              <option value="cloud-heavy">cloud-heavy</option>
+              <option value="hybrid" selected>hybrid</option>
+              <option value="local-heavy">local-heavy</option>
+            </select>
+            <button class="btn-primary" id="refresh">Refresh Feed</button>
+            <button id="reset">Reset Session</button>
+          </div>
+          <div class="status" id="status">ready</div>
+        </div>
+        <div class="cards" id="cards"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="side-block">
+          <div class="label">Current Intent</div>
+          <div class="value" id="intent">-</div>
+        </div>
+        <div class="side-block">
+          <div class="label">Goal</div>
+          <div class="value" id="goal">-</div>
+        </div>
+        <div class="side-block">
+          <div class="label">Focus</div>
+          <div class="trace-list" id="focus"></div>
+        </div>
+        <div class="side-block">
+          <div class="label">Accepted / Rejected Patterns</div>
+          <div class="trace-list" id="patterns"></div>
+        </div>
+        <div class="side-block">
+          <div class="label">Recent Signals</div>
+          <div class="trace-list" id="signals"></div>
+        </div>
+        <div class="side-block">
+          <div class="label">Session Snapshot</div>
+          <pre class="log" id="log"></pre>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      strategy: document.getElementById("strategy"),
+      refresh: document.getElementById("refresh"),
+      reset: document.getElementById("reset"),
+      cards: document.getElementById("cards"),
+      status: document.getElementById("status"),
+      intent: document.getElementById("intent"),
+      goal: document.getElementById("goal"),
+      focus: document.getElementById("focus"),
+      patterns: document.getElementById("patterns"),
+      signals: document.getElementById("signals"),
+      log: document.getElementById("log"),
+    };
+
+    let latestDecision = null;
+
+    function setStatus(text) {
+      els.status.textContent = text;
+    }
+
+    function renderTags(node, values) {
+      node.innerHTML = "";
+      if (!values || values.length === 0) {
+        const span = document.createElement("span");
+        span.textContent = "-";
+        node.appendChild(span);
+        return;
+      }
+      for (const value of values) {
+        const span = document.createElement("span");
+        span.textContent = value;
+        node.appendChild(span);
+      }
+    }
+
+    function renderDecision(payload) {
+      latestDecision = payload;
+      const decision = payload.decision;
+      const trace = payload.trace || {};
+      const summary = trace.sessionSummary || {};
+      const working = trace.workingContext || {};
+
+      els.intent.textContent = decision.intent.name;
+      els.goal.textContent = summary.currentGoal || decision.context.metadata?.currentGoal || decision.context.metadata?.userGoal || "-";
+      renderTags(els.focus, summary.currentFocusRefs || decision.context.focusObjectIds || []);
+      renderTags(
+        els.patterns,
+        [
+          ...((summary.acceptedPatterns || []).map((value) => "accept:" + value)),
+          ...((summary.rejectedPatterns || []).map((value) => "reject:" + value)),
+        ]
+      );
+      renderTags(els.signals, working.recentSignals || []);
+      els.log.textContent = JSON.stringify(payload, null, 2);
+
+      els.cards.innerHTML = "";
+      if (!decision.opportunities.length) {
+        els.cards.innerHTML = '<div class="empty">No opportunities returned.</div>';
+        return;
+      }
+
+      for (const opportunity of decision.opportunities) {
+        const card = document.createElement("article");
+        card.className = "card";
+        card.innerHTML = \`
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">\${opportunity.headline}</h2>
+              <div class="sub">\${opportunity.reason}</div>
+            </div>
+            <div class="pill">\${opportunity.kind}</div>
+          </div>
+          <div class="meta">
+            <span>cost: \${opportunity.cost?.level || "n/a"}</span>
+            <span>value: \${opportunity.value?.level || "n/a"}</span>
+            <span>mode: \${opportunity.metadata?.mode || "n/a"}</span>
+            <span>score: \${opportunity.score ?? "n/a"}</span>
+          </div>
+          <div class="actions">
+            <button data-opportunity="\${opportunity.id}" data-action="dismiss">Skip</button>
+            <button data-opportunity="\${opportunity.id}" data-action="focus">Focus</button>
+            <button class="btn-primary" data-opportunity="\${opportunity.id}" data-action="run">Run</button>
+          </div>
+        \`;
+        els.cards.appendChild(card);
+      }
+    }
+
+    async function callJson(path, payload) {
+      const response = await fetch(path, {
+        method: payload ? "POST" : "GET",
+        headers: { "content-type": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.error || "request_failed");
+      }
+      return json;
+    }
+
+    async function refreshFeed() {
+      setStatus("loading...");
+      const strategy = els.strategy.value;
+      const payload = await callJson("/feed/next", { strategy, limit: 3 });
+      renderDecision(payload);
+      setStatus("feed updated");
+    }
+
+    async function resetFeed() {
+      setStatus("resetting...");
+      const strategy = els.strategy.value;
+      await callJson("/feed/reset", { strategy });
+      await refreshFeed();
+      setStatus("session reset");
+    }
+
+    els.refresh.addEventListener("click", refreshFeed);
+    els.reset.addEventListener("click", resetFeed);
+    els.strategy.addEventListener("change", refreshFeed);
+    els.cards.addEventListener("click", async (event) => {
+      const target = event.target.closest("button[data-action]");
+      if (!target || !latestDecision) return;
+      const strategy = els.strategy.value;
+      const opportunity = latestDecision.decision.opportunities.find(
+        (item) => item.id === target.dataset.opportunity
+      );
+      if (!opportunity) return;
+
+      setStatus(target.dataset.action + "...");
+      if (target.dataset.action === "run") {
+        await callJson("/feed/run", {
+          strategy,
+          opportunity,
+          context: latestDecision.decision.context,
+        });
+      } else {
+        await callJson("/feed/feedback", {
+          strategy,
+          opportunity,
+          action: target.dataset.action,
+        });
+      }
+      await refreshFeed();
+    });
+
+    refreshFeed().catch((error) => {
+      setStatus("error");
+      els.log.textContent = String(error);
+    });
+  </script>`);
+}
+
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
 
 async function seedContextState(contextState, session) {
   for (const event of session.recentEvents ?? []) {
@@ -50,23 +462,19 @@ async function buildResearchRuntime(strategy) {
     ],
     services: {
       retrieval: new InMemoryRetrievalService({
-        state: {
-          refs: storage.state,
-        },
-        memory: {
-          refs: storage.memory,
-        },
-        supply: {
-          refs: storage.supply,
-        },
-        constraint: {
-          refs: storage.constraints,
-        },
+        state: { refs: storage.state },
+        memory: { refs: storage.memory },
+        supply: { refs: storage.supply },
+        constraint: { refs: storage.constraints },
       }),
       candidateConstruction: new BasicCandidateConstructionService({
         continue_current_object: {
           headlinePrefix: "Next",
           reasonPrefix: "High-signal next step for",
+        },
+        deepen_current_object: {
+          headlinePrefix: "Deepen",
+          reasonPrefix: "Build deeper momentum for",
         },
         recover_flow: {
           headlinePrefix: "Recover",
@@ -84,6 +492,7 @@ async function buildResearchRuntime(strategy) {
     sessionId: storage.session.sessionId,
     userId: storage.session.userId,
     surface: storage.session.surface,
+    strategy,
   };
 }
 
@@ -96,9 +505,20 @@ async function getRuntime(strategy) {
   return runtimes.get(strategy);
 }
 
+async function resetRuntime(strategy) {
+  const next = await buildResearchRuntime(strategy);
+  runtimes.set(strategy, next);
+  return next;
+}
+
 function sendJson(res, status, body) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body, null, 2));
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+  res.end(body);
 }
 
 async function readJsonBody(req) {
@@ -110,28 +530,210 @@ async function readJsonBody(req) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function getStrategy(url) {
-  const strategy = url.searchParams.get("strategy") || "hybrid";
-  if (!["cloud-heavy", "hybrid", "local-heavy"].includes(strategy)) {
+function getStrategy(url, body = {}) {
+  const strategy = body.strategy || url.searchParams.get("strategy") || "hybrid";
+  if (!VALID_STRATEGIES.includes(strategy)) {
     throw new Error(`Unsupported strategy: ${strategy}`);
   }
   return strategy;
+}
+
+function buildBehaviorEvent(action, opportunity) {
+  const type =
+    action === "dismiss"
+      ? "feed_dismissed"
+      : action === "focus"
+        ? "feed_focused"
+        : "feed_interacted";
+
+  return {
+    id: `event:${type}:${Date.now()}`,
+    type,
+    timestampMs: Date.now(),
+    actor: "user",
+    objectRefs: [opportunity.id, ...(opportunity.sourceRefs ?? [])].slice(0, 3),
+    metadata: {
+      mode: opportunity.metadata?.mode,
+      kind: opportunity.kind,
+      action,
+    },
+  };
+}
+
+function buildBehaviorWrites(action, opportunity) {
+  const mode = opportunity.metadata?.mode ?? opportunity.kind;
+  const writes = [];
+
+  if (action === "dismiss") {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "rejectedPatterns",
+      value: mode,
+      reason: "feed_dismissed_pattern",
+    });
+  }
+
+  if (action === "focus") {
+    writes.push({
+      target: "session",
+      operation: "set",
+      path: "focusRefs",
+      value: opportunity.sourceRefs.slice(1),
+      reason: "feed_focused_source_refs",
+    });
+  }
+
+  return writes;
+}
+
+async function snapshotPayload(runtimeHandle, strategy, decision = null) {
+  return {
+    strategy,
+    decision,
+    trace: runtimeHandle.runtime.getLastDecisionTrace?.(),
+    session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
+  };
 }
 
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
+    if (req.method === "GET" && url.pathname === "/") {
+      return sendHtml(res, 200, feedPage());
+    }
+
     if (req.method === "GET" && url.pathname === "/health") {
       return sendJson(res, 200, {
         ok: true,
-        service: "recommendation-runtime-sdk-server",
+        service: "recommendation-runtime-feed-demo",
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/feed/reset") {
+      const body = await readJsonBody(req);
+      const strategy = getStrategy(url, body);
+      const runtimeHandle = await resetRuntime(strategy);
+      return sendJson(res, 200, {
+        ok: true,
+        strategy,
+        session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/feed/next") {
+      const body = await readJsonBody(req);
+      const strategy = getStrategy(url, body);
+      const runtimeHandle = await getRuntime(strategy);
+      const decision = await runtimeHandle.runtime.decideNext({
+        sessionId: runtimeHandle.sessionId,
+        userId: runtimeHandle.userId,
+        surface: runtimeHandle.surface,
+        limit: body.limit || 3,
+        metadata: body.metadata,
+      });
+      return sendJson(res, 200, await snapshotPayload(runtimeHandle, strategy, decision));
+    }
+
+    if (req.method === "POST" && url.pathname === "/feed/feedback") {
+      const body = await readJsonBody(req);
+      const strategy = getStrategy(url, body);
+      const runtimeHandle = await getRuntime(strategy);
+
+      if (!body.opportunity || !body.action) {
+        return sendJson(res, 400, {
+          error: "Missing `opportunity` or `action`",
+        });
+      }
+
+      const event = buildBehaviorEvent(body.action, body.opportunity);
+      const writes = buildBehaviorWrites(body.action, body.opportunity);
+
+      await runtimeHandle.contextState.appendEvent({
+        sessionId: runtimeHandle.sessionId,
+        event,
+      });
+
+      if (writes.length > 0) {
+        await runtimeHandle.contextState.applyStateWrites({
+          sessionId: runtimeHandle.sessionId,
+          writes,
+        });
+      }
+
+      await runtimeHandle.contextState.compressSession({
+        sessionId: runtimeHandle.sessionId,
+        trigger: `feed_${body.action}`,
+      });
+
+      const decision = await runtimeHandle.runtime.decideNext({
+        sessionId: runtimeHandle.sessionId,
+        userId: runtimeHandle.userId,
+        surface: runtimeHandle.surface,
+        limit: 3,
+      });
+
+      return sendJson(res, 200, {
+        ok: true,
+        action: body.action,
+        appendedEvent: event,
+        writes,
+        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/feed/run") {
+      const body = await readJsonBody(req);
+      const strategy = getStrategy(url, body);
+      const runtimeHandle = await getRuntime(strategy);
+
+      if (!body.opportunity) {
+        return sendJson(res, 400, {
+          error: "Missing `opportunity`",
+        });
+      }
+
+      const context =
+        body.context ??
+        (await runtimeHandle.runtime.getContext({
+          sessionId: runtimeHandle.sessionId,
+          userId: runtimeHandle.userId,
+          surface: runtimeHandle.surface,
+        }));
+
+      const execution = await runtimeHandle.runtime.executeSelection({
+        opportunity: body.opportunity,
+        context,
+      });
+
+      const decision = await runtimeHandle.runtime.decideNext({
+        sessionId: runtimeHandle.sessionId,
+        userId: runtimeHandle.userId,
+        surface: runtimeHandle.surface,
+        limit: 3,
+      });
+
+      return sendJson(res, 200, {
+        strategy,
+        execution,
+        executionTrace: runtimeHandle.runtime.getLastExecutionTrace?.(),
+        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/sdk/state") {
+      const strategy = getStrategy(url);
+      const runtimeHandle = await getRuntime(strategy);
+      return sendJson(res, 200, {
+        strategy,
+        session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
       });
     }
 
     if (req.method === "POST" && url.pathname === "/sdk/decide") {
       const body = await readJsonBody(req);
-      const strategy = body.strategy || getStrategy(url);
+      const strategy = getStrategy(url, body);
       const runtimeHandle = await getRuntime(strategy);
       const decision = await runtimeHandle.runtime.decideNext({
         sessionId: body.sessionId || runtimeHandle.sessionId,
@@ -150,7 +752,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/sdk/execute") {
       const body = await readJsonBody(req);
-      const strategy = body.strategy || getStrategy(url);
+      const strategy = getStrategy(url, body);
       const runtimeHandle = await getRuntime(strategy);
 
       if (!body.opportunity) {
@@ -172,55 +774,6 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    if (req.method === "GET" && url.pathname === "/sdk/state") {
-      const strategy = getStrategy(url);
-      const runtimeHandle = await getRuntime(strategy);
-      return sendJson(res, 200, {
-        strategy,
-        session: runtimeHandle.contextState.getSessionSnapshot(
-          runtimeHandle.sessionId
-        ),
-      });
-    }
-
-    if (req.method === "POST" && url.pathname === "/sdk/demo-run") {
-      const body = await readJsonBody(req);
-      const strategy = body.strategy || getStrategy(url);
-      const runtimeHandle = await getRuntime(strategy);
-
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: runtimeHandle.sessionId,
-        userId: runtimeHandle.userId,
-        surface: runtimeHandle.surface,
-        limit: body.limit || 3,
-        metadata: body.metadata,
-      });
-
-      const selected = decision.opportunities[0];
-      if (!selected) {
-        return sendJson(res, 200, {
-          strategy,
-          decision,
-          decisionTrace: runtimeHandle.runtime.getLastDecisionTrace?.(),
-          execution: null,
-          executionTrace: null,
-        });
-      }
-
-      const execution = await runtimeHandle.runtime.executeSelection({
-        opportunity: selected,
-        context: decision.context,
-      });
-
-      return sendJson(res, 200, {
-        strategy,
-        decision,
-        decisionTrace: runtimeHandle.runtime.getLastDecisionTrace?.(),
-        execution,
-        executionTrace: runtimeHandle.runtime.getLastExecutionTrace?.(),
-      });
-    }
-
     return sendJson(res, 404, {
       error: "Not found",
       path: url.pathname,
@@ -239,10 +792,14 @@ server.listen(PORT, () => {
         ok: true,
         port: PORT,
         endpoints: [
+          "GET /",
           "GET /health",
+          "POST /feed/next",
+          "POST /feed/feedback",
+          "POST /feed/run",
+          "POST /feed/reset",
           "POST /sdk/decide",
           "POST /sdk/execute",
-          "POST /sdk/demo-run",
           "GET /sdk/state?strategy=hybrid",
         ],
       },

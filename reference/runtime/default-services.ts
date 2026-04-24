@@ -67,6 +67,12 @@ export class InMemoryRetrievalService implements RetrievalService {
     bucket?: RetrievalBucket
   ): RetrievalResult {
     const refs = truncate(bucket?.refs ?? [], input.limit).filter((ref) => {
+      if (
+        input.intent?.name === "recover_flow" ||
+        input.intent?.name === "clarify_goal"
+      ) {
+        return true;
+      }
       if (!input.objectRefs?.length) return true;
       const objectRefs = (ref.metadata?.objectRefs as string[] | undefined) ?? [];
       return objectRefs.some((objectRef) => input.objectRefs?.includes(objectRef));
@@ -127,15 +133,31 @@ export class BasicCandidateConstructionService
     return {
       id: `opp_${context.sessionId}_${index}_${ref.id}`,
       kind,
-      headline: `${headlinePrefix}: ${ref.kind} ${ref.id}`,
-      reason: `${reasonPrefix} ${intent.name}`,
+      headline:
+        (ref.metadata?.headline as string | undefined) ??
+        `${headlinePrefix}: ${ref.kind} ${ref.id}`,
+      reason: `${
+        (ref.metadata?.reasonPrefix as string | undefined) ?? reasonPrefix
+      } ${intent.name}`,
       sourceRefs: [ref.id, ...context.focusObjectIds].slice(0, 3),
       actionRef: `action_${actionType}_${ref.id}`,
       score: ref.score,
+      cost: {
+        level: (ref.metadata?.costLevel as "low" | "medium" | "high" | undefined) ?? "medium",
+        label: (ref.metadata?.costLevel as string | undefined) ?? "medium",
+      },
+      value: {
+        level: (ref.metadata?.valueLevel as "low" | "medium" | "high" | undefined) ?? "medium",
+        label:
+          (ref.metadata?.valueLevel as string | undefined) ??
+          (ref.metadata?.mode as string | undefined) ??
+          "medium",
+      },
       metadata: {
         sourceKind: ref.kind,
         sourceRefId: ref.id,
         actionType,
+        mode: ref.metadata?.mode,
       },
     };
   }
@@ -183,8 +205,14 @@ export class SimplePolicyService implements PolicyService {
     const seen = new Set<string>();
     const selected: Opportunity[] = [];
     const suppressed: DecisionResult["suppressed"] = [];
+    const rejectedPatterns =
+      (input.context.metadata?.rejectedPatterns as string[] | undefined) ?? [];
+    const acceptedPatterns =
+      (input.context.metadata?.acceptedPatterns as string[] | undefined) ?? [];
     const sorted = [...input.opportunities].sort(
-      (a, b) => (b.score ?? 0) - (a.score ?? 0)
+      (a, b) =>
+        this.scoreOpportunity(b, input.intent.name, rejectedPatterns, acceptedPatterns) -
+        this.scoreOpportunity(a, input.intent.name, rejectedPatterns, acceptedPatterns)
     );
 
     for (const opportunity of sorted) {
@@ -213,6 +241,30 @@ export class SimplePolicyService implements PolicyService {
       suppressed,
       metadata: input.metadata,
     };
+  }
+
+  private scoreOpportunity(
+    opportunity: Opportunity,
+    intentName: Intent["name"],
+    rejectedPatterns: string[],
+    acceptedPatterns: string[]
+  ): number {
+    let score = opportunity.score ?? 0;
+    const mode = (opportunity.metadata?.mode as string | undefined) ?? opportunity.kind;
+
+    if (intentName === "recover_flow" && opportunity.cost?.level === "high") {
+      score -= 0.35;
+    }
+
+    if (rejectedPatterns.includes(mode) || rejectedPatterns.includes(opportunity.kind)) {
+      score -= 0.2;
+    }
+
+    if (acceptedPatterns.includes(mode) || acceptedPatterns.includes(opportunity.kind)) {
+      score += 0.12;
+    }
+
+    return score;
   }
 }
 
