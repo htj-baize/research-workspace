@@ -14,6 +14,9 @@ Current contents:
 - `推荐系统/2026-04-24-studio-quest-runtime-mapping.md`
 - `reference/recommendation-runtime-protocol.ts`
 - `reference/recommendation-runtime-services.ts`
+- `reference/recommendation-runtime-candidate.ts`
+- `reference/runtime/default-services.ts`
+- `reference/runtime/in-memory-recommendation-runtime.ts`
 
 ## Directories
 
@@ -25,3 +28,4 @@ Current contents:
 - `reference/`
   - Reference protocol types and interfaces
   - Retrieval and policy service interface sketches
+  - Candidate construction and runtime skeletons
