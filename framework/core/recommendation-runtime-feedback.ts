@@ -65,3 +65,32 @@ export interface FeedbackProjector {
   project(input: ProjectFeedbackInput): Promise<StateProjection[]>;
 }
 
+export type FeedbackKeyResolver = (
+  event: FeedbackEvent
+) => string | undefined | Promise<string | undefined>;
+
+export type FeedbackSignalRuleInput = InterpretFeedbackInput & {
+  key?: string;
+};
+
+export type FeedbackSignalRule = (
+  input: FeedbackSignalRuleInput
+) =>
+  | FeedbackSignal
+  | FeedbackSignal[]
+  | null
+  | undefined
+  | Promise<FeedbackSignal | FeedbackSignal[] | null | undefined>;
+
+export type FeedbackProjectionRuleInput = ProjectFeedbackInput & {
+  signal: FeedbackSignal;
+};
+
+export type FeedbackProjectionRule = (
+  input: FeedbackProjectionRuleInput
+) =>
+  | StateProjection
+  | StateProjection[]
+  | null
+  | undefined
+  | Promise<StateProjection | StateProjection[] | null | undefined>;

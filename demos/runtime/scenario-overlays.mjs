@@ -1,45 +1,6 @@
-function baseFeedbackEvent(action, opportunity, extraMetadata = {}) {
-  const type =
-    action === "dismiss"
-      ? "feed_dismissed"
-      : action === "focus" || action === "open"
-        ? "feed_focused"
-        : action === "like"
-          ? "post_liked"
-          : action === "save"
-            ? "post_saved"
-            : action === "watch"
-              ? "video_watched"
-              : action === "clarify"
-                ? "clarification_answered"
-                : "feed_interacted";
-  const feedbackKey =
-    opportunity.metadata?.feedbackKey ?? opportunity.metadata?.mode ?? opportunity.kind;
+import { createScenarioOverlay } from "../../framework/index.ts";
 
-  return {
-    id: `event:${type}:${Date.now()}`,
-    action,
-    targetRef: opportunity.id,
-    type,
-    timestampMs: Date.now(),
-    actor: "user",
-    objectRefs: [opportunity.id, ...(opportunity.sourceRefs ?? [])].slice(0, 3),
-    metadata: {
-      feedbackKey,
-      mode: opportunity.metadata?.mode,
-      kind: opportunity.kind,
-      action,
-      focusRefs:
-        action === "focus" || action === "open"
-          ? (opportunity.sourceRefs ?? []).slice(1)
-          : undefined,
-      artifactRef: action === "save" ? `saved:${opportunity.id}` : undefined,
-      ...extraMetadata,
-    },
-  };
-}
-
-const socialFeedOverlay = {
+const socialFeedOverlay = createScenarioOverlay({
   name: "social-feed",
   candidateTemplates: {
     explore: {
@@ -58,9 +19,6 @@ const socialFeedOverlay = {
       headlinePrefix: "Recover",
       reasonPrefix: "Low-friction recovery for",
     },
-  },
-  buildFeedbackEvent(input) {
-    return baseFeedbackEvent(input.action, input.opportunity, input.metadata);
   },
   buildExplanations({ decision, sessionSummary, lastEvent }) {
     const lines = [];
@@ -104,9 +62,9 @@ const socialFeedOverlay = {
 
     return lines.slice(0, 4);
   },
-};
+});
 
-const researchFlowOverlay = {
+const researchFlowOverlay = createScenarioOverlay({
   name: "research-flow",
   candidateTemplates: {
     continue_current_object: {
@@ -122,9 +80,6 @@ const researchFlowOverlay = {
       reasonPrefix: "Low-friction recovery for",
     },
   },
-  buildFeedbackEvent(input) {
-    return baseFeedbackEvent(input.action, input.opportunity, input.metadata);
-  },
   buildExplanations({ decision, lastEvent }) {
     const lines = [];
 
@@ -136,13 +91,16 @@ const researchFlowOverlay = {
       lines.push("你刚执行过一个动作并产出了 artifact，所以系统开始偏向更深一层的 continuation，而不是只做恢复。");
     }
 
-    if (decision.intent.name === "recover_flow" && decision.opportunities.some((item) => item.cost?.level === "high")) {
+    if (
+      decision.intent.name === "recover_flow" &&
+      decision.opportunities.some((item) => item.cost?.level === "high")
+    ) {
       lines.push("虽然高成本候选还在池子里，但 recover_flow 阶段它们会被压到后面，不会优先顶到最前排。");
     }
 
     return lines.slice(0, 4);
   },
-};
+});
 
 export const SCENARIO_OVERLAYS = {
   "social-feed": socialFeedOverlay,

@@ -32,6 +32,7 @@
 - service interfaces
 - context / feedback / overlay contracts
 - default services
+- composable feedback rules and resolvers
 - `InMemoryRecommendationRuntime`
 - `buildReferenceRuntime()`
 - `sessionFromContext()`

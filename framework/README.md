@@ -35,5 +35,17 @@ This directory holds the runtime pieces that are meant to become the packaged SD
 Business-side code should prefer:
 
 - [index.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/index.ts)
+- [package.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/package.json)
 
 Instead of importing deep internal paths directly.
+
+## Extension points
+
+The framework now exposes finer-grained extension points instead of forcing whole-block replacement:
+
+- feedback key resolver
+- feedback signal rules
+- feedback projection rules
+- overlay feedback type resolver
+- overlay feedback metadata builder
+- overlay explanation builder

@@ -185,6 +185,26 @@ event
 
 ---
 
+## 更细的 extension points
+
+现在默认 feedback 实现已经不是一整块硬编码，而是拆成了可组合规则：
+
+- `FeedbackKeyResolver`
+- `FeedbackSignalRule`
+- `FeedbackProjectionRule`
+- `ComposableFeedbackInterpreter`
+- `ComposableFeedbackProjector`
+
+这意味着业务方如果只想改一件事，比如：
+
+- `save` 应该比 `like` 更强多少
+- 哪些 action 应该生成 `high_intent_engagement`
+- `negative_interest` 写到哪条 session path
+
+不需要整块替换 interpreter / projector，只要替换单条 rule 或 resolver。 
+
+---
+
 ## 和 demo 的边界
 
 ### 属于 framework

@@ -44,6 +44,14 @@ interface ScenarioOverlay {
 }
 ```
 
+同时 framework 现在提供：
+
+```ts
+createScenarioOverlay(config)
+```
+
+它可以把几个更细的覆盖点组合成完整 overlay，而不是要求业务从零手写整个对象。
+
 ---
 
 ## 哪些属于 core
@@ -83,6 +91,12 @@ interface ScenarioOverlay {
 - assistant 的 `clarify / refine / run_tool`
 
 这些动作虽然都能落进 `FeedbackEvent`，但事件构造方式是场景相关的。
+
+当前已经拆出的更细粒度覆盖点包括：
+
+- `resolveFeedbackType`
+- `resolveFeedbackKey`
+- `buildFeedbackMetadata`
 
 ### 3. Explanation synthesis
 
