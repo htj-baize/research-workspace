@@ -1,0 +1,87 @@
+[
+  {
+    "id": "post:citywalk-night",
+    "kind": "video",
+    "score": 0.93,
+    "metadata": {
+      "mode": "short_video",
+      "feedbackKey": "shanghai-citywalk",
+      "objectRefs": ["topic:shanghai-citywalk"],
+      "headline": "上海夜色 citywalk 路线，拍照和吃饭都顺手",
+      "reasonPrefix": "你最近连续停留在同类城市漫步内容后，系统放大的下一条",
+      "valueLevel": "high",
+      "costLevel": "low",
+      "creator": "@Momo散步日记",
+      "hook": "外滩到乍浦路桥的一条夜走路线，路灯和霓虹都很出片。",
+      "tags": ["上海", "citywalk", "夜景", "拍照路线"]
+    }
+  },
+  {
+    "id": "post:office-ootd",
+    "kind": "post",
+    "score": 0.87,
+    "metadata": {
+      "mode": "lifestyle_post",
+      "feedbackKey": "office-ootd",
+      "objectRefs": ["topic:ootd"],
+      "headline": "三套通勤 OOTD，把松弛感和正式度压在同一条线上",
+      "reasonPrefix": "和你最近看过的穿搭流接近，但更偏实穿",
+      "valueLevel": "high",
+      "costLevel": "low",
+      "creator": "@阿植衣橱",
+      "hook": "不是走秀感，是明天真能穿去上班的三套。",
+      "tags": ["穿搭", "通勤", "ootd", "春季"]
+    }
+  },
+  {
+    "id": "post:matcha-cafe",
+    "kind": "video",
+    "score": 0.82,
+    "metadata": {
+      "mode": "short_video",
+      "feedbackKey": "cafe-vibes",
+      "objectRefs": ["topic:cafe-vibes", "topic:shanghai-citywalk"],
+      "headline": "武康路抹茶店半日停留指南，座位和出片位都帮你看了",
+      "reasonPrefix": "你对氛围型内容有停留时，这类轻生活方式视频更容易接住你",
+      "valueLevel": "medium",
+      "costLevel": "low",
+      "creator": "@小柴喝抹茶",
+      "hook": "不是探店打卡清单，更像替你踩了一遍雷和最佳座位。",
+      "tags": ["咖啡馆", "抹茶", "上海", "武康路"]
+    }
+  },
+  {
+    "id": "post:luxury-bag-unbox",
+    "kind": "video",
+    "score": 0.8,
+    "metadata": {
+      "mode": "short_video",
+      "feedbackKey": "luxury-haul",
+      "objectRefs": ["topic:luxury-haul"],
+      "headline": "二十万预算新包开箱，颜色和容量一次看完",
+      "reasonPrefix": "高热度内容，但更偏消费展示",
+      "valueLevel": "medium",
+      "costLevel": "high",
+      "creator": "@Luna买买买",
+      "hook": "不是种草，是直接上预算线和品牌线的开箱。",
+      "tags": ["奢侈品", "开箱", "包包", "消费"]
+    }
+  },
+  {
+    "id": "post:film-pose-guide",
+    "kind": "post",
+    "score": 0.78,
+    "metadata": {
+      "mode": "lifestyle_post",
+      "feedbackKey": "photo-pose",
+      "objectRefs": ["topic:shanghai-citywalk", "topic:photo-pose"],
+      "headline": "胶片感街拍姿势清单，走路也能拍得像抓拍",
+      "reasonPrefix": "和 citywalk 内容相邻，但更偏拍照实用技巧",
+      "valueLevel": "medium",
+      "costLevel": "low",
+      "creator": "@阿鹿拍照课",
+      "hook": "把站姿、回头、走路的节奏拆得很细，适合边看边学。",
+      "tags": ["拍照", "姿势", "胶片感", "街拍"]
+    }
+  }
+]

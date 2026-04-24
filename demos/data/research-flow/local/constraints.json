@@ -1,0 +1,13 @@
+[
+  {
+    "id": "constraint:low-friction",
+    "kind": "constraint",
+    "score": 1,
+    "metadata": {
+      "type": "interaction_preference",
+      "value": "low_friction",
+      "source": "local"
+    }
+  }
+]
+

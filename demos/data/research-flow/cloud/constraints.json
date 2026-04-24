@@ -1,0 +1,13 @@
+[
+  {
+    "id": "constraint:tool-cost",
+    "kind": "constraint",
+    "score": 1,
+    "metadata": {
+      "type": "tool_cost",
+      "value": "medium_budget",
+      "source": "cloud"
+    }
+  }
+]
+

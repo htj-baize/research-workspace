@@ -1,44 +1,40 @@
 # Research Workspace
 
-This repository stores working notes and research drafts from ongoing discussions.
+This repository now separates the **framework** layer from the **demo** layer.
 
-Current contents:
+## Structure
 
-- `notes/2026-04-24-quest-engine-and-next-gen-recommendation.md`
-- `推荐系统/2026-04-24-生成式推荐与下一代推荐系统.md`
-- `推荐系统/2026-04-24-agent-native-recommendation-state-and-sdk.md`
-- `推荐系统/2026-04-24-recommendation-runtime-protocol.md`
-- `推荐系统/2026-04-24-recommendation-retrieval-design.md`
-- `推荐系统/2026-04-24-recommendation-policy-and-decision-layer.md`
-- `推荐系统/2026-04-24-recommendation-runtime-lifecycle.md`
-- `推荐系统/2026-04-24-studio-quest-runtime-mapping.md`
-- `推荐系统/2026-04-24-agent-recommendation-flow-validation-plan.md`
-- `reference/recommendation-runtime-protocol.ts`
-- `reference/recommendation-runtime-services.ts`
-- `reference/recommendation-runtime-candidate.ts`
-- `reference/runtime/default-services.ts`
-- `reference/runtime/in-memory-recommendation-runtime.ts`
-- `reference/runtime/sample-usage.ts`
-- `reference/runtime/research-flow-validation-demo.mjs`
-- `reference/runtime/runtime-trace-sample.ts`
-- `reference/runtime/web-sdk-server.mjs`
-- `reference/runtime/storage/file-state-storage.mjs`
-- `reference/runtime/storage/in-memory-context-state-service.mjs`
-- `reference/runtime/data/research-flow/`
-- `推荐系统/2026-04-24-research-flow-vertical-slice.md`
-- `推荐系统/2026-04-24-context-write-protocol-and-session-compression.md`
-- `reference/recommendation-runtime-context.ts`
-- `推荐系统/2026-04-24-research-flow-vertical-slice.md`
-
-## Directories
-
-- `notes/`
-  - English working notes
+- `framework/`
+  - Runtime protocol and core types intended to evolve into an SDK surface for product teams.
+  - In-memory runtime, retrieval, policy, context-state, and storage helpers.
+- `demos/`
+  - Vertical slices, sample usage, and interactive demos that exercise the framework.
+  - Scenario data for `research-flow` and `social-feed`.
 - `推荐系统/`
-  - Chinese notes focused on generative recommendation and next-generation recommendation systems
-  - Agent-native recommendation architecture, state layering, and SDK abstractions
-- `reference/`
-  - Reference protocol types and interfaces
-  - Retrieval and policy service interface sketches
-  - Candidate construction and runtime skeletons
-  - Minimal web feed demo for behavior-driven recommendation testing
+  - Chinese design notes for next-generation recommendation systems, runtime layering, validation plans, and related design drafts.
+- `notes/`
+  - English working notes from the earlier exploration phase.
+
+## Framework
+
+- `framework/core/recommendation-runtime-protocol.ts`
+- `framework/core/recommendation-runtime-services.ts`
+- `framework/core/recommendation-runtime-candidate.ts`
+- `framework/core/recommendation-runtime-context.ts`
+- `framework/runtime/default-services.ts`
+- `framework/runtime/in-memory-recommendation-runtime.ts`
+- `framework/storage/file-state-storage.mjs`
+- `framework/storage/in-memory-context-state-service.mjs`
+
+## Demos
+
+- `demos/runtime/sample-usage.ts`
+- `demos/runtime/runtime-trace-sample.ts`
+- `demos/runtime/research-flow-validation-demo.mjs`
+- `demos/runtime/web-sdk-server.mjs`
+- `demos/data/research-flow/`
+- `demos/data/social-feed/`
+
+## Notes
+
+- Older design notes may still mention the previous `reference/` layout. The canonical code locations are now under `framework/` and `demos/`.
