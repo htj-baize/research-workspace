@@ -12,6 +12,7 @@ Current contents:
 - `推荐系统/2026-04-24-recommendation-policy-and-decision-layer.md`
 - `推荐系统/2026-04-24-recommendation-runtime-lifecycle.md`
 - `推荐系统/2026-04-24-studio-quest-runtime-mapping.md`
+- `推荐系统/2026-04-24-agent-recommendation-flow-validation-plan.md`
 - `reference/recommendation-runtime-protocol.ts`
 - `reference/recommendation-runtime-services.ts`
 - `reference/recommendation-runtime-candidate.ts`
