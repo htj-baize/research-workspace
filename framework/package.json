@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ./tsconfig.json --noEmit",
+    "build:types": "tsc -p ./tsconfig.build.json",
+    "check:exports": "node -e \"import('./index.ts').then((m)=>console.log(JSON.stringify({ ok: !!m.buildReferenceRuntime })))\""
+  },
   "exports": {
     ".": "./index.ts",
     "./core/*": "./core/*.ts",
@@ -16,6 +24,7 @@
     "core",
     "runtime",
     "storage",
-    "README.md"
+    "README.md",
+    "package.json"
   ]
 }

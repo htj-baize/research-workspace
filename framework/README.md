@@ -39,6 +39,19 @@ Business-side code should prefer:
 
 Instead of importing deep internal paths directly.
 
+## Example integration
+
+There is now a minimal business-side customization example at:
+
+- [business-customization.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/examples/business-customization.ts)
+
+It shows how to:
+
+- override one feedback rule
+- add one durable projection rule
+- customize one overlay's feedback event type / metadata
+- assemble the runtime through `buildReferenceRuntime()`
+
 ## Extension points
 
 The framework now exposes finer-grained extension points instead of forcing whole-block replacement:

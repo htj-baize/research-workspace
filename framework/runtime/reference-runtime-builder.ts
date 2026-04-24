@@ -3,9 +3,12 @@ import type {
   Context,
 } from "../core/recommendation-runtime-protocol.ts";
 import type { CandidateTemplateMap } from "../core/recommendation-runtime-candidate.ts";
+import type {
+  FeedbackInterpreter,
+  FeedbackProjector,
+} from "../core/recommendation-runtime-feedback.ts";
 import type { ScenarioOverlay } from "../core/recommendation-runtime-overlay.ts";
 import {
-  buildDefaultRuntimeServices,
   type InMemoryRetrievalData,
   type DefaultRuntimeServices,
   BasicCandidateConstructionService,
@@ -29,6 +32,10 @@ export type ReferenceRuntimeBuilderConfig = {
   overlay?: ScenarioOverlay;
   contextState?: ContextStateLike;
   services?: Partial<DefaultRuntimeServices>;
+  feedback?: {
+    interpreter: FeedbackInterpreter;
+    projector: FeedbackProjector;
+  };
 };
 
 export type ReferenceRuntimeHandle = {
@@ -65,6 +72,7 @@ export function buildReferenceRuntime(
       candidateConstruction,
       policy,
     },
+    feedback: config.feedback,
     contextState: config.contextState,
   });
 

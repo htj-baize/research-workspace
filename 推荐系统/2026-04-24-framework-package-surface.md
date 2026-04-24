@@ -39,6 +39,26 @@
 
 ---
 
+## Package skeleton
+
+`framework/` 现在已经有：
+
+- [package.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/package.json)
+- [tsconfig.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/tsconfig.json)
+- [tsconfig.build.json](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/tsconfig.build.json)
+
+当前提供的 scripts 包括：
+
+- `typecheck`
+- `build:types`
+- `check:exports`
+
+这让它已经具备一个可发布 SDK 的最小 package 骨架。
+
+注：当前本地环境没有安装 `tsc`，所以这轮只补了配置，还没有在本机实际跑 `typecheck` / `build:types`。
+
+---
+
 ## 推荐的业务接入方式
 
 优先用：
