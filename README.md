@@ -10,6 +10,8 @@ Current contents:
 - `推荐系统/2026-04-24-recommendation-runtime-protocol.md`
 - `推荐系统/2026-04-24-recommendation-retrieval-design.md`
 - `推荐系统/2026-04-24-recommendation-policy-and-decision-layer.md`
+- `推荐系统/2026-04-24-recommendation-runtime-lifecycle.md`
+- `推荐系统/2026-04-24-studio-quest-runtime-mapping.md`
 - `reference/recommendation-runtime-protocol.ts`
 - `reference/recommendation-runtime-services.ts`
 
