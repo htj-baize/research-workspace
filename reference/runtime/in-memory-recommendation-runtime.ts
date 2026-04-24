@@ -517,16 +517,6 @@ export class InMemoryRecommendationRuntime
       },
     ];
 
-    if (input.intent.name === "recover_flow") {
-      writes.push({
-        target: "session",
-        operation: "append",
-        path: "rejectedPatterns",
-        value: "recover_flow",
-        reason: "runtime_recover_flow",
-      });
-    }
-
     return writes;
   }
 

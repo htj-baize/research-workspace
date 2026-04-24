@@ -1,0 +1,12 @@
+[
+  {
+    "id": "constraint:social-no-hard-sell",
+    "kind": "constraint",
+    "score": 1,
+    "metadata": {
+      "type": "content_bias",
+      "value": "avoid_hard_sell",
+      "source": "cloud"
+    }
+  }
+]

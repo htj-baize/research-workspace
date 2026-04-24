@@ -158,6 +158,10 @@ export class BasicCandidateConstructionService
         sourceRefId: ref.id,
         actionType,
         mode: ref.metadata?.mode,
+        feedbackKey: ref.metadata?.feedbackKey,
+        creator: ref.metadata?.creator,
+        hook: ref.metadata?.hook,
+        tags: ref.metadata?.tags,
       },
     };
   }
@@ -251,16 +255,26 @@ export class SimplePolicyService implements PolicyService {
   ): number {
     let score = opportunity.score ?? 0;
     const mode = (opportunity.metadata?.mode as string | undefined) ?? opportunity.kind;
+    const feedbackKey =
+      (opportunity.metadata?.feedbackKey as string | undefined) ?? mode;
 
     if (intentName === "recover_flow" && opportunity.cost?.level === "high") {
       score -= 0.35;
     }
 
-    if (rejectedPatterns.includes(mode) || rejectedPatterns.includes(opportunity.kind)) {
+    if (
+      rejectedPatterns.includes(feedbackKey) ||
+      rejectedPatterns.includes(mode) ||
+      rejectedPatterns.includes(opportunity.kind)
+    ) {
       score -= 0.2;
     }
 
-    if (acceptedPatterns.includes(mode) || acceptedPatterns.includes(opportunity.kind)) {
+    if (
+      acceptedPatterns.includes(feedbackKey) ||
+      acceptedPatterns.includes(mode) ||
+      acceptedPatterns.includes(opportunity.kind)
+    ) {
       score += 0.12;
     }
 

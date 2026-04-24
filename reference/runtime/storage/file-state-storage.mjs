@@ -25,18 +25,14 @@ function mergeUniqueById(...collections) {
   return result;
 }
 
-export function loadResearchFlowStorage(strategy) {
-  const localSession = readJson("../data/research-flow/local/session.json");
-  const cloudSession = readJson("../data/research-flow/cloud/session.json");
-  const localMemory = readJson("../data/research-flow/local/memory.json");
-  const cloudMemory = readJson("../data/research-flow/cloud/memory.json");
-  const localConstraints = readJson(
-    "../data/research-flow/local/constraints.json"
-  );
-  const cloudConstraints = readJson(
-    "../data/research-flow/cloud/constraints.json"
-  );
-  const supply = readJson("../data/research-flow/shared/supply.json");
+function loadScenarioStorage(basePath, strategy) {
+  const localSession = readJson(`../data/${basePath}/local/session.json`);
+  const cloudSession = readJson(`../data/${basePath}/cloud/session.json`);
+  const localMemory = readJson(`../data/${basePath}/local/memory.json`);
+  const cloudMemory = readJson(`../data/${basePath}/cloud/memory.json`);
+  const localConstraints = readJson(`../data/${basePath}/local/constraints.json`);
+  const cloudConstraints = readJson(`../data/${basePath}/cloud/constraints.json`);
+  const supply = readJson(`../data/${basePath}/shared/supply.json`);
 
   const session =
     strategy === "local-heavy"
@@ -92,3 +88,10 @@ export function loadResearchFlowStorage(strategy) {
   };
 }
 
+export function loadResearchFlowStorage(strategy) {
+  return loadScenarioStorage("research-flow", strategy);
+}
+
+export function loadSocialFeedStorage(strategy) {
+  return loadScenarioStorage("social-feed", strategy);
+}

@@ -6,11 +6,15 @@ import {
   InMemoryRetrievalService,
   SimplePolicyService,
 } from "./default-services.ts";
-import { loadResearchFlowStorage } from "./storage/file-state-storage.mjs";
+import {
+  loadResearchFlowStorage,
+  loadSocialFeedStorage,
+} from "./storage/file-state-storage.mjs";
 import { InMemoryContextStateService } from "./storage/in-memory-context-state-service.mjs";
 
 const PORT = Number(process.env.PORT || 4321);
 const VALID_STRATEGIES = ["cloud-heavy", "hybrid", "local-heavy"];
+const VALID_SCENARIOS = ["social-feed", "research-flow"];
 
 function html(body) {
   return `<!doctype html>
@@ -358,6 +362,10 @@ function feedPage() {
               <option value="hybrid" selected>hybrid</option>
               <option value="local-heavy">local-heavy</option>
             </select>
+            <select id="scenario">
+              <option value="social-feed" selected>social-feed</option>
+              <option value="research-flow">research-flow</option>
+            </select>
             <button class="btn-primary" id="refresh">Refresh Feed</button>
             <button id="reset">Reset Session</button>
           </div>
@@ -409,6 +417,7 @@ function feedPage() {
   <script>
     const els = {
       strategy: document.getElementById("strategy"),
+      scenario: document.getElementById("scenario"),
       refresh: document.getElementById("refresh"),
       reset: document.getElementById("reset"),
       cards: document.getElementById("cards"),
@@ -452,6 +461,26 @@ function feedPage() {
 
     function cardPreset(opportunity) {
       const mode = opportunity.metadata?.mode || opportunity.kind;
+      if (mode === "short_video") {
+        return {
+          variant: "tool_run",
+          eyebrow: "Short Video",
+          description: "更像抖音式短视频卡，重点是 hook、停留和看完后的下一跳。",
+          prompt: "先看完它，再决定是点赞、收藏，还是继续滑走。",
+          runLabel: "Watch",
+          focusLabel: "Open Thread",
+        };
+      }
+      if (mode === "lifestyle_post") {
+        return {
+          variant: "workflow_step",
+          eyebrow: "Lifestyle Post",
+          description: "更像小红书图文卡，重点是收藏价值、主题贴合度和作者风格。",
+          prompt: "如果它像一张值得回头再看的帖子，优先收藏而不是只停留。",
+          runLabel: "Open Post",
+          focusLabel: "More Like This",
+        };
+      }
       if (mode === "clarification") {
         return {
           variant: "clarification",
@@ -563,6 +592,32 @@ function feedPage() {
 
       for (const opportunity of decision.opportunities) {
         const preset = cardPreset(opportunity);
+        const scenario = els.scenario.value;
+        const primaryAction =
+          scenario === "social-feed"
+            ? (opportunity.metadata?.mode === "short_video" ? "watch" : "open")
+            : "run";
+        const primaryLabel =
+          scenario === "social-feed" ? preset.runLabel : preset.runLabel;
+        const secondaryAction =
+          scenario === "social-feed"
+            ? (opportunity.metadata?.mode === "short_video" ? "like" : "save")
+            : "focus";
+        const secondaryLabel =
+          scenario === "social-feed"
+            ? (secondaryAction === "like" ? "Like" : "Save")
+            : preset.focusLabel;
+        const creatorHtml = opportunity.metadata?.creator
+          ? \`<span>creator: \${escapeHtml(opportunity.metadata.creator)}</span>\`
+          : "";
+        const hookHtml = opportunity.metadata?.hook
+          ? \`<div class="card-prompt">\${escapeHtml(opportunity.metadata.hook)}</div>\`
+          : "";
+        const tagsHtml = opportunity.metadata?.tags?.length
+          ? \`<div class="trace-list">\${opportunity.metadata.tags
+              .map((tag) => \`<span>#\${escapeHtml(tag)}</span>\`)
+              .join("")}</div>\`
+          : "";
         const card = document.createElement("article");
         card.className = \`card card-\${preset.variant}\`;
         card.innerHTML = \`
@@ -592,12 +647,15 @@ function feedPage() {
           </div>
           <div class="meta">
             <span>score: \${opportunity.score ?? "n/a"}</span>
+            \${creatorHtml}
             <span>source: \${escapeHtml((opportunity.sourceRefs || []).join(" · "))}</span>
           </div>
+          \${hookHtml}
+          \${tagsHtml}
           <div class="actions">
             <button class="btn-ghost" data-opportunity="\${opportunity.id}" data-action="dismiss">Skip</button>
-            <button class="btn-soft" data-opportunity="\${opportunity.id}" data-action="focus">\${escapeHtml(preset.focusLabel)}</button>
-            <button class="btn-primary" data-opportunity="\${opportunity.id}" data-action="run">\${escapeHtml(preset.runLabel)}</button>
+            <button class="btn-soft" data-opportunity="\${opportunity.id}" data-action="\${secondaryAction}">\${escapeHtml(secondaryLabel)}</button>
+            <button class="btn-primary" data-opportunity="\${opportunity.id}" data-action="\${primaryAction}">\${escapeHtml(primaryLabel)}</button>
           </div>
         \`;
         els.cards.appendChild(card);
@@ -620,7 +678,8 @@ function feedPage() {
     async function refreshFeed() {
       setStatus("loading...");
       const strategy = els.strategy.value;
-      const payload = await callJson("/feed/next", { strategy, limit: 3 });
+      const scenario = els.scenario.value;
+      const payload = await callJson("/feed/next", { strategy, scenario, limit: 3 });
       renderDecision(payload);
       setStatus("feed updated");
     }
@@ -628,7 +687,8 @@ function feedPage() {
     async function resetFeed() {
       setStatus("resetting...");
       const strategy = els.strategy.value;
-      await callJson("/feed/reset", { strategy });
+      const scenario = els.scenario.value;
+      await callJson("/feed/reset", { strategy, scenario });
       pendingClarification = null;
       els.composer.classList.remove("active");
       els.composerInput.value = "";
@@ -639,6 +699,7 @@ function feedPage() {
     els.refresh.addEventListener("click", refreshFeed);
     els.reset.addEventListener("click", resetFeed);
     els.strategy.addEventListener("change", refreshFeed);
+    els.scenario.addEventListener("change", refreshFeed);
     els.composerCancel.addEventListener("click", () => {
       pendingClarification = null;
       els.composer.classList.remove("active");
@@ -654,8 +715,10 @@ function feedPage() {
       }
       setStatus("clarifying...");
       const strategy = els.strategy.value;
+      const scenario = els.scenario.value;
       await callJson("/feed/clarify", {
         strategy,
+        scenario,
         opportunity: pendingClarification,
         answer,
       });
@@ -674,7 +737,8 @@ function feedPage() {
       if (!opportunity) return;
 
       setStatus(target.dataset.action + "...");
-      if (target.dataset.action === "run") {
+      const scenario = els.scenario.value;
+      if (target.dataset.action === "run" || target.dataset.action === "watch" || target.dataset.action === "open") {
         if ((opportunity.metadata?.mode || opportunity.kind) === "clarification") {
           openClarification(opportunity);
           setStatus("clarification needed");
@@ -682,12 +746,15 @@ function feedPage() {
         }
         await callJson("/feed/run", {
           strategy,
+          scenario,
+          action: target.dataset.action,
           opportunity,
           context: latestDecision.decision.context,
         });
       } else {
         await callJson("/feed/feedback", {
           strategy,
+          scenario,
           opportunity,
           action: target.dataset.action,
         });
@@ -718,8 +785,11 @@ async function seedContextState(contextState, session) {
   }
 }
 
-async function buildResearchRuntime(strategy) {
-  const storage = loadResearchFlowStorage(strategy);
+async function buildScenarioRuntime(strategy, scenario) {
+  const storage =
+    scenario === "social-feed"
+      ? loadSocialFeedStorage(strategy)
+      : loadResearchFlowStorage(strategy);
   const contextState = new InMemoryContextStateService({
     sessions: [{ sessionId: storage.session.sessionId }],
   });
@@ -751,6 +821,12 @@ async function buildResearchRuntime(strategy) {
         constraint: { refs: storage.constraints },
       }),
       candidateConstruction: new BasicCandidateConstructionService({
+        explore: scenario === "social-feed"
+          ? {
+              headlinePrefix: "For You",
+              reasonPrefix: "Recent behavior suggests",
+            }
+          : undefined,
         continue_current_object: {
           headlinePrefix: "Next",
           reasonPrefix: "High-signal next step for",
@@ -776,21 +852,28 @@ async function buildResearchRuntime(strategy) {
     userId: storage.session.userId,
     surface: storage.session.surface,
     strategy,
+    scenario,
   };
 }
 
 const runtimes = new Map();
 
-async function getRuntime(strategy) {
-  if (!runtimes.has(strategy)) {
-    runtimes.set(strategy, await buildResearchRuntime(strategy));
-  }
-  return runtimes.get(strategy);
+function runtimeKey(strategy, scenario) {
+  return `${scenario}:${strategy}`;
 }
 
-async function resetRuntime(strategy) {
-  const next = await buildResearchRuntime(strategy);
-  runtimes.set(strategy, next);
+async function getRuntime(strategy, scenario) {
+  const key = runtimeKey(strategy, scenario);
+  if (!runtimes.has(key)) {
+    runtimes.set(key, await buildScenarioRuntime(strategy, scenario));
+  }
+  return runtimes.get(key);
+}
+
+async function resetRuntime(strategy, scenario) {
+  const key = runtimeKey(strategy, scenario);
+  const next = await buildScenarioRuntime(strategy, scenario);
+  runtimes.set(key, next);
   return next;
 }
 
@@ -821,13 +904,29 @@ function getStrategy(url, body = {}) {
   return strategy;
 }
 
+function getScenario(url, body = {}) {
+  const scenario = body.scenario || url.searchParams.get("scenario") || "social-feed";
+  if (!VALID_SCENARIOS.includes(scenario)) {
+    throw new Error(`Unsupported scenario: ${scenario}`);
+  }
+  return scenario;
+}
+
 function buildBehaviorEvent(action, opportunity) {
   const type =
     action === "dismiss"
       ? "feed_dismissed"
-      : action === "focus"
+      : action === "focus" || action === "open"
         ? "feed_focused"
+        : action === "like"
+          ? "post_liked"
+          : action === "save"
+            ? "post_saved"
+            : action === "watch"
+              ? "video_watched"
         : "feed_interacted";
+  const feedbackKey =
+    opportunity.metadata?.feedbackKey ?? opportunity.metadata?.mode ?? opportunity.kind;
 
   return {
     id: `event:${type}:${Date.now()}`,
@@ -836,6 +935,7 @@ function buildBehaviorEvent(action, opportunity) {
     actor: "user",
     objectRefs: [opportunity.id, ...(opportunity.sourceRefs ?? [])].slice(0, 3),
     metadata: {
+      feedbackKey,
       mode: opportunity.metadata?.mode,
       kind: opportunity.kind,
       action,
@@ -845,6 +945,7 @@ function buildBehaviorEvent(action, opportunity) {
 
 function buildBehaviorWrites(action, opportunity) {
   const mode = opportunity.metadata?.mode ?? opportunity.kind;
+  const feedbackKey = opportunity.metadata?.feedbackKey ?? mode;
   const writes = [];
 
   if (action === "dismiss") {
@@ -852,18 +953,38 @@ function buildBehaviorWrites(action, opportunity) {
       target: "session",
       operation: "append",
       path: "rejectedPatterns",
-      value: mode,
+      value: feedbackKey,
       reason: "feed_dismissed_pattern",
     });
   }
 
-  if (action === "focus") {
+  if (action === "focus" || action === "open") {
     writes.push({
       target: "session",
       operation: "set",
       path: "focusRefs",
       value: opportunity.sourceRefs.slice(1),
       reason: "feed_focused_source_refs",
+    });
+  }
+
+  if (action === "like" || action === "save" || action === "watch") {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "acceptedPatterns",
+      value: feedbackKey,
+      reason: `feed_${action}_pattern`,
+    });
+  }
+
+  if (action === "save") {
+    writes.push({
+      target: "session",
+      operation: "append",
+      path: "recentArtifacts",
+      value: `saved:${opportunity.id}`,
+      reason: "feed_saved_artifact",
     });
   }
 
@@ -889,7 +1010,7 @@ function buildClarificationWrites(opportunity, answer) {
   ];
 }
 
-function buildExplanations(runtimeHandle, decision) {
+function buildExplanations(runtimeHandle, decision, scenario) {
   const snapshot =
     runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId) ?? {};
   const summary = snapshot.summary ?? {};
@@ -903,12 +1024,24 @@ function buildExplanations(runtimeHandle, decision) {
 
   if (lastEvent?.type === "feed_dismissed") {
     lines.push(
-      `你刚刚跳过了 ${(lastEvent.metadata?.mode ?? lastEvent.metadata?.kind ?? "上一张卡")}，所以系统把 intent 切向更保守的 ${decision.intent.name}。`
+      `你刚刚跳过了 ${(lastEvent.metadata?.feedbackKey ?? lastEvent.metadata?.mode ?? lastEvent.metadata?.kind ?? "上一张卡")}，所以系统把 intent 切向更保守的 ${decision.intent.name}。`
     );
   }
 
   if (lastEvent?.type === "clarification_answered") {
     lines.push("你刚补充了一个更明确的目标，系统把它写进 currentGoal，并据此重排了下一轮候选。");
+  }
+
+  if (lastEvent?.type === "post_liked" || lastEvent?.type === "video_watched") {
+    lines.push(
+      `你刚对 ${(lastEvent.metadata?.feedbackKey ?? "这一类内容")} 给了正向反馈，所以相近主题在这轮里被放大了。`
+    );
+  }
+
+  if (lastEvent?.type === "post_saved") {
+    lines.push(
+      `你刚收藏了 ${(lastEvent.metadata?.feedbackKey ?? "一条内容")}，系统会把它当成更强的长期兴趣信号。`
+    );
   }
 
   if (lastEvent?.type === "outcome_executed") {
@@ -921,6 +1054,10 @@ function buildExplanations(runtimeHandle, decision) {
 
   if (accepted.length > 0) {
     lines.push(`当前 session 已记录接受模式：${accepted.join(" / ")}，相近路径会在后续推荐里被轻微放大。`);
+  }
+
+  if (scenario === "social-feed" && accepted.length === 0 && rejected.length === 0) {
+    lines.push("现在更像一个内容平台的冷启动阶段，系统先按你最近停留过的主题和基础热度发牌。");
   }
 
   if (recentArtifacts.length > 0) {
@@ -945,13 +1082,16 @@ function buildExplanations(runtimeHandle, decision) {
   return lines.slice(0, 4);
 }
 
-async function snapshotPayload(runtimeHandle, strategy, decision = null) {
+async function snapshotPayload(runtimeHandle, strategy, _scenario, decision = null) {
   return {
     strategy,
+    scenario: runtimeHandle.scenario,
     decision,
     trace: runtimeHandle.runtime.getLastDecisionTrace?.(),
     session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
-    explanations: decision ? buildExplanations(runtimeHandle, decision) : [],
+    explanations: decision
+      ? buildExplanations(runtimeHandle, decision, runtimeHandle.scenario)
+      : [],
   };
 }
 
@@ -973,10 +1113,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/feed/reset") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await resetRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await resetRuntime(strategy, scenario);
       return sendJson(res, 200, {
         ok: true,
         strategy,
+        scenario,
         session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
       });
     }
@@ -984,7 +1126,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/feed/next") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
       const decision = await runtimeHandle.runtime.decideNext({
         sessionId: runtimeHandle.sessionId,
         userId: runtimeHandle.userId,
@@ -992,13 +1135,14 @@ const server = http.createServer(async (req, res) => {
         limit: body.limit || 3,
         metadata: body.metadata,
       });
-      return sendJson(res, 200, await snapshotPayload(runtimeHandle, strategy, decision));
+      return sendJson(res, 200, await snapshotPayload(runtimeHandle, strategy, scenario, decision));
     }
 
     if (req.method === "POST" && url.pathname === "/feed/feedback") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
 
       if (!body.opportunity || !body.action) {
         return sendJson(res, 400, {
@@ -1038,14 +1182,15 @@ const server = http.createServer(async (req, res) => {
         action: body.action,
         appendedEvent: event,
         writes,
-        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+        ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
     }
 
     if (req.method === "POST" && url.pathname === "/feed/run") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
 
       if (!body.opportunity) {
         return sendJson(res, 400, {
@@ -1061,10 +1206,52 @@ const server = http.createServer(async (req, res) => {
           surface: runtimeHandle.surface,
         }));
 
-      const execution = await runtimeHandle.runtime.executeSelection({
-        opportunity: body.opportunity,
-        context,
-      });
+      let execution;
+      if (scenario === "social-feed") {
+        const action = body.action || "open";
+        const event = buildBehaviorEvent(action, body.opportunity);
+        const writes = buildBehaviorWrites(action, body.opportunity);
+
+        await runtimeHandle.contextState.appendEvent({
+          sessionId: runtimeHandle.sessionId,
+          event,
+        });
+        if (writes.length > 0) {
+          await runtimeHandle.contextState.applyStateWrites({
+            sessionId: runtimeHandle.sessionId,
+            writes,
+          });
+        }
+        await runtimeHandle.contextState.compressSession({
+          sessionId: runtimeHandle.sessionId,
+          trigger: `feed_${action}`,
+        });
+
+        execution = {
+          action: {
+            id: `action:${action}:${body.opportunity.id}`,
+            type: action,
+          },
+          outcome: {
+            actionId: `action:${action}:${body.opportunity.id}`,
+            status: "accepted",
+            feedbackSignals: [
+              {
+                type: `feed_${action}_success`,
+                value: true,
+              },
+            ],
+            artifactRefs: action === "save" ? [`saved:${body.opportunity.id}`] : [],
+          },
+          appendedEvent: event,
+          writes,
+        };
+      } else {
+        execution = await runtimeHandle.runtime.executeSelection({
+          opportunity: body.opportunity,
+          context,
+        });
+      }
 
       const decision = await runtimeHandle.runtime.decideNext({
         sessionId: runtimeHandle.sessionId,
@@ -1075,16 +1262,24 @@ const server = http.createServer(async (req, res) => {
 
       return sendJson(res, 200, {
         strategy,
+        scenario,
         execution,
-        executionTrace: runtimeHandle.runtime.getLastExecutionTrace?.(),
-        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+        executionTrace:
+          scenario === "social-feed"
+            ? {
+                appendedEvent: execution.appendedEvent,
+                writes: execution.writes,
+              }
+            : runtimeHandle.runtime.getLastExecutionTrace?.(),
+        ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
     }
 
     if (req.method === "POST" && url.pathname === "/feed/clarify") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
 
       if (!body.opportunity || !body.answer) {
         return sendJson(res, 400, {
@@ -1129,15 +1324,17 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         appendedEvent: event,
         writes,
-        ...(await snapshotPayload(runtimeHandle, strategy, decision)),
+        ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
       });
     }
 
     if (req.method === "GET" && url.pathname === "/sdk/state") {
       const strategy = getStrategy(url);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url);
+      const runtimeHandle = await getRuntime(strategy, scenario);
       return sendJson(res, 200, {
         strategy,
+        scenario,
         session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
       });
     }
@@ -1145,7 +1342,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/sdk/decide") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
       const decision = await runtimeHandle.runtime.decideNext({
         sessionId: body.sessionId || runtimeHandle.sessionId,
         userId: body.userId || runtimeHandle.userId,
@@ -1156,6 +1354,7 @@ const server = http.createServer(async (req, res) => {
 
       return sendJson(res, 200, {
         strategy,
+        scenario,
         decision,
         trace: runtimeHandle.runtime.getLastDecisionTrace?.(),
       });
@@ -1164,7 +1363,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/sdk/execute") {
       const body = await readJsonBody(req);
       const strategy = getStrategy(url, body);
-      const runtimeHandle = await getRuntime(strategy);
+      const scenario = getScenario(url, body);
+      const runtimeHandle = await getRuntime(strategy, scenario);
 
       if (!body.opportunity) {
         return sendJson(res, 400, {
@@ -1180,6 +1380,7 @@ const server = http.createServer(async (req, res) => {
 
       return sendJson(res, 200, {
         strategy,
+        scenario,
         execution,
         trace: runtimeHandle.runtime.getLastExecutionTrace?.(),
       });
