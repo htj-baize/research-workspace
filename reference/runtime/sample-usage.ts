@@ -1,6 +1,6 @@
-import { InMemoryRecommendationRuntime } from "./in-memory-recommendation-runtime";
-import { InMemoryRetrievalService, SimplePolicyService } from "./default-services";
-import { BasicCandidateConstructionService } from "./default-services";
+import { InMemoryRecommendationRuntime } from "./in-memory-recommendation-runtime.ts";
+import { InMemoryRetrievalService, SimplePolicyService } from "./default-services.ts";
+import { BasicCandidateConstructionService } from "./default-services.ts";
 
 async function main() {
   const runtime = new InMemoryRecommendationRuntime({

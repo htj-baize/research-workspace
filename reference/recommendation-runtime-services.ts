@@ -5,7 +5,7 @@ import type {
   Intent,
   Metadata,
   Opportunity,
-} from "./recommendation-runtime-protocol";
+} from "./recommendation-runtime-protocol.ts";
 
 export type RetrievalTarget =
   | "state"

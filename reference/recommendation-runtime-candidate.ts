@@ -3,8 +3,8 @@ import type {
   Intent,
   Metadata,
   Opportunity,
-} from "./recommendation-runtime-protocol";
-import type { RetrievalResult } from "./recommendation-runtime-services";
+} from "./recommendation-runtime-protocol.ts";
+import type { RetrievalResult } from "./recommendation-runtime-services.ts";
 
 export type CandidateMaterialSet = {
   state?: RetrievalResult;
@@ -24,4 +24,3 @@ export type ConstructCandidatesInput = {
 export interface CandidateConstructionService {
   construct(input: ConstructCandidatesInput): Promise<Opportunity[]>;
 }
-

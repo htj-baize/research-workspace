@@ -5,11 +5,11 @@ import type {
   Metadata,
   Opportunity,
   OpportunityKind,
-} from "../recommendation-runtime-protocol";
+} from "../recommendation-runtime-protocol.ts";
 import type {
   CandidateConstructionService,
   ConstructCandidatesInput,
-} from "../recommendation-runtime-candidate";
+} from "../recommendation-runtime-candidate.ts";
 import type {
   DecisionInput,
   PolicyService,
@@ -17,7 +17,7 @@ import type {
   RetrievalResult,
   RetrievalService,
   RetrievedRef,
-} from "../recommendation-runtime-services";
+} from "../recommendation-runtime-services.ts";
 
 type RetrievalBucket = {
   refs: RetrievedRef[];
@@ -37,7 +37,11 @@ function truncate<T>(items: T[], limit?: number): T[] {
 }
 
 export class InMemoryRetrievalService implements RetrievalService {
-  constructor(private readonly data: InMemoryRetrievalData = {}) {}
+  private readonly data: InMemoryRetrievalData;
+
+  constructor(data: InMemoryRetrievalData = {}) {
+    this.data = data;
+  }
 
   retrieveState(input: RetrievalQuery): Promise<RetrievalResult> {
     return Promise.resolve(this.buildResult("state", input, this.data.state));
@@ -86,11 +90,15 @@ type CandidateTemplate = {
 export class BasicCandidateConstructionService
   implements CandidateConstructionService
 {
+  private readonly templateByIntent: Partial<
+    Record<Intent["name"], CandidateTemplate>
+  >;
+
   constructor(
-    private readonly templateByIntent: Partial<
-      Record<Intent["name"], CandidateTemplate>
-    > = {}
-  ) {}
+    templateByIntent: Partial<Record<Intent["name"], CandidateTemplate>> = {}
+  ) {
+    this.templateByIntent = templateByIntent;
+  }
 
   async construct(input: ConstructCandidatesInput): Promise<Opportunity[]> {
     const template = this.templateByIntent[input.intent.name] ?? {};
@@ -165,7 +173,11 @@ export class BasicCandidateConstructionService
 }
 
 export class SimplePolicyService implements PolicyService {
-  constructor(private readonly defaultLimit = 3) {}
+  private readonly defaultLimit: number;
+
+  constructor(defaultLimit = 3) {
+    this.defaultLimit = defaultLimit;
+  }
 
   async decide(input: DecisionInput): Promise<DecisionResult> {
     const seen = new Set<string>();
