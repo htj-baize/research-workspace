@@ -1,3 +1,14 @@
+import type {
+  FeedbackEvent,
+  FeedbackSignal as RuntimeFeedbackSignal,
+  StateProjection,
+} from "./recommendation-runtime-feedback.ts";
+import type {
+  PromotionDecision,
+  SessionSummary,
+  WorkingContext,
+} from "./recommendation-runtime-context.ts";
+
 export type Id = string;
 
 export type Metadata = Record<string, unknown>;
@@ -161,6 +172,21 @@ export type RecordOutcomeInput = {
   metadata?: Metadata;
 };
 
+export type HandleFeedbackInput = {
+  event: FeedbackEvent;
+  context?: Context;
+  metadata?: Metadata;
+};
+
+export type FeedbackHandlingResult = {
+  event: FeedbackEvent;
+  signals: RuntimeFeedbackSignal[];
+  projections: StateProjection[];
+  sessionSummary?: SessionSummary;
+  workingContext?: WorkingContext;
+  promotionDecisions?: PromotionDecision[];
+};
+
 export type Decision = {
   context: Context;
   intent: Intent;
@@ -194,6 +220,7 @@ export interface RecommendationRuntime {
   getAction(input: GetActionInput): Promise<Action>;
   executeAction(input: ExecuteActionInput): Promise<ActionExecutionResult>;
   recordOutcome(input: RecordOutcomeInput): Promise<void>;
+  handleFeedback?(input: HandleFeedbackInput): Promise<FeedbackHandlingResult>;
 }
 
 export interface RecommendationSdk {

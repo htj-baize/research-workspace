@@ -1,5 +1,7 @@
 import type {
   CandidateConstructionService,
+  CandidateTemplate,
+  CandidateTemplateMap,
   ConstructCandidatesInput,
 } from "../core/recommendation-runtime-candidate.ts";
 import type {
@@ -86,23 +88,12 @@ export class InMemoryRetrievalService implements RetrievalService {
   }
 }
 
-type CandidateTemplate = {
-  opportunityKind?: OpportunityKind;
-  actionType?: ActionType;
-  headlinePrefix?: string;
-  reasonPrefix?: string;
-};
-
 export class BasicCandidateConstructionService
   implements CandidateConstructionService
 {
-  private readonly templateByIntent: Partial<
-    Record<Intent["name"], CandidateTemplate>
-  >;
+  private readonly templateByIntent: CandidateTemplateMap;
 
-  constructor(
-    templateByIntent: Partial<Record<Intent["name"], CandidateTemplate>> = {}
-  ) {
+  constructor(templateByIntent: CandidateTemplateMap = {}) {
     this.templateByIntent = templateByIntent;
   }
 

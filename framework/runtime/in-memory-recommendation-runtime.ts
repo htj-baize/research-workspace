@@ -7,7 +7,9 @@ import type {
   Decision,
   ExecuteActionInput,
   ExecuteSelectionInput,
+  FeedbackHandlingResult,
   GetActionInput,
+  HandleFeedbackInput,
   Intent,
   RecordOutcomeInput,
   RecommendationRuntime,
@@ -514,11 +516,9 @@ export class InMemoryRecommendationRuntime
     return this.lastFeedbackTrace;
   }
 
-  async handleFeedback(input: {
-    event: FeedbackEvent;
-    context?: Context;
-    metadata?: Record<string, unknown>;
-  }): Promise<RuntimeFeedbackTrace> {
+  async handleFeedback(
+    input: HandleFeedbackInput
+  ): Promise<FeedbackHandlingResult> {
     const sessionId = input.context?.sessionId ?? "default_session";
     const previous = this.sessionStore.get(sessionId) ?? { sessionId };
     const existingEvents = previous.recentEvents ?? [];
@@ -550,7 +550,7 @@ export class InMemoryRecommendationRuntime
     });
 
     if (!this.contextState) {
-      const trace = {
+      const trace: FeedbackHandlingResult = {
         event: input.event,
         signals,
         projections,
@@ -589,7 +589,7 @@ export class InMemoryRecommendationRuntime
       sessionId,
     });
 
-    const trace = {
+    const trace: FeedbackHandlingResult = {
       event: input.event,
       signals,
       projections,

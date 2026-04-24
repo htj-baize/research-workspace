@@ -1,6 +1,8 @@
 import type {
+  ActionType,
   Context,
   Intent,
+  IntentName,
   Metadata,
   Opportunity,
 } from "./recommendation-runtime-protocol.ts";
@@ -20,6 +22,15 @@ export type ConstructCandidatesInput = {
   limit?: number;
   metadata?: Metadata;
 };
+
+export type CandidateTemplate = {
+  opportunityKind?: Opportunity["kind"];
+  actionType?: ActionType;
+  headlinePrefix?: string;
+  reasonPrefix?: string;
+};
+
+export type CandidateTemplateMap = Partial<Record<IntentName, CandidateTemplate>>;
 
 export interface CandidateConstructionService {
   construct(input: ConstructCandidatesInput): Promise<Opportunity[]>;

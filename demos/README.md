@@ -12,6 +12,7 @@ This directory holds scenario-specific and product-like examples built on top of
 
 - `runtime/`
   - CLI samples, validation slices, and the interactive web feed demo.
+  - Scenario overlays that implement the framework's overlay contract.
 - `data/`
   - Scenario fixtures used by the demos.
 

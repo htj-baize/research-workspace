@@ -20,6 +20,7 @@ This directory holds the runtime pieces that are meant to become the packaged SD
 - `core/`
   - Shared protocol and service contracts.
   - Feedback protocol for event -> signal -> state projection.
+  - Scenario overlay contract for business-specific templates, feedback mapping, and explanations.
 - `runtime/`
   - Default retrieval, candidate construction, policy, and feedback services.
   - In-memory runtime implementation, including `handleFeedback()` for feedback -> signal -> projection -> context-state writes.
