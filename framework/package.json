@@ -8,12 +8,14 @@
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test ./tests/*.test.ts",
     "typecheck": "tsc -p ./tsconfig.json --noEmit",
     "build:types": "tsc -p ./tsconfig.build.json",
     "check:exports": "node -e \"import('./index.ts').then((m)=>console.log(JSON.stringify({ ok: !!m.buildReferenceRuntime })))\""
   },
   "exports": {
     ".": "./index.ts",
+    "./adapters/*": "./adapters/*.ts",
     "./core/*": "./core/*.ts",
     "./runtime/*": "./runtime/*.ts",
     "./storage/*": "./storage/*",
@@ -21,6 +23,7 @@
   },
   "files": [
     "index.ts",
+    "adapters",
     "core",
     "runtime",
     "storage",

@@ -4,8 +4,11 @@ import {
   buildReferenceRuntime,
   createScenarioOverlay,
   defaultFeedbackProjectionRules,
-  defaultFeedbackSignalRules,
   dismissToNegativeInterestRule,
+  focusShiftRule,
+  goalRefinementRule,
+  highIntentEngagementRule,
+  positiveInterestRule,
   sessionFromContext,
   type FeedbackProjectionRule,
   type FeedbackSignalRule,
@@ -28,6 +31,14 @@ const superLikeRule: FeedbackSignalRule = async ({ event, key }) => {
       source: "custom_super_like_rule",
     },
   };
+};
+
+const commercePositiveInterestRule: FeedbackSignalRule = async (input) => {
+  if (input.event.action === "like" && input.event.metadata?.superLike === true) {
+    return [];
+  }
+
+  return positiveInterestRule(input);
 };
 
 const durablePreferenceProjectionRule: FeedbackProjectionRule = async ({
@@ -86,7 +97,14 @@ const commerceOverlay = createScenarioOverlay({
 
 async function main() {
   const customInterpreter = new ComposableFeedbackInterpreter({
-    signalRules: [superLikeRule, dismissToNegativeInterestRule, ...defaultFeedbackSignalRules],
+    signalRules: [
+      superLikeRule,
+      dismissToNegativeInterestRule,
+      commercePositiveInterestRule,
+      focusShiftRule,
+      goalRefinementRule,
+      highIntentEngagementRule,
+    ],
   });
   const customProjector = new ComposableFeedbackProjector({
     projectionRules: [durablePreferenceProjectionRule, ...defaultFeedbackProjectionRules],

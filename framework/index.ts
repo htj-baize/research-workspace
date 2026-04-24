@@ -9,5 +9,6 @@ export * from "./runtime/default-services.ts";
 export * from "./runtime/default-feedback-services.ts";
 export * from "./runtime/in-memory-recommendation-runtime.ts";
 export * from "./runtime/reference-runtime-builder.ts";
+export * from "./adapters/recommendation-session-adapter.ts";
 export * from "./storage/in-memory-context-state-service.mjs";
 export * from "./storage/file-state-storage.mjs";
