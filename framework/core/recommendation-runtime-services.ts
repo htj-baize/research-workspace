@@ -39,11 +39,31 @@ export type RetrievalResult = {
   metadata?: Metadata;
 };
 
+export type RetrievalPlanStep = {
+  id: Id;
+  query: RetrievalQuery;
+  rationale?: string;
+};
+
+export type RetrievalPlan = {
+  steps: RetrievalPlanStep[];
+  metadata?: Metadata;
+};
+
 export interface RetrievalService {
   retrieveState(input: RetrievalQuery): Promise<RetrievalResult>;
   retrieveMemory(input: RetrievalQuery): Promise<RetrievalResult>;
   retrieveSupply(input: RetrievalQuery): Promise<RetrievalResult>;
   retrieveConstraints(input: RetrievalQuery): Promise<RetrievalResult>;
+}
+
+export interface RetrievalPlanner {
+  plan(input: {
+    context: Context;
+    intent: Intent;
+    limit?: number;
+    metadata?: Metadata;
+  }): Promise<RetrievalPlan>;
 }
 
 export type ScoreBreakdown = {
@@ -66,6 +86,11 @@ export type DecisionInput = {
   metadata?: Metadata;
 };
 
+export type OpportunityScore = {
+  opportunityId: Id;
+  breakdown: ScoreBreakdown;
+};
+
 export type SuppressedOpportunity = {
   opportunityId: Id;
   reason: string;
@@ -74,9 +99,20 @@ export type SuppressedOpportunity = {
 export type DecisionResult = {
   selected: Opportunity[];
   suppressed?: SuppressedOpportunity[];
+  scores?: OpportunityScore[];
   metadata?: Metadata;
 };
 
 export interface PolicyService {
   decide(input: DecisionInput): Promise<DecisionResult>;
+}
+
+export interface PolicyScorer {
+  score(input: {
+    context: Context;
+    intent: Intent;
+    opportunity: Opportunity;
+    constraints?: ConstraintRef[];
+    metadata?: Metadata;
+  }): Promise<ScoreBreakdown>;
 }

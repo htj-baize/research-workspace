@@ -27,6 +27,8 @@ This directory holds the runtime pieces that are meant to become the packaged SD
   - Default retrieval, candidate construction, policy, and feedback services.
   - In-memory runtime implementation, including `handleFeedback()` for feedback -> signal -> projection -> context-state writes.
   - `buildReferenceRuntime()` for assembling a reference runtime without importing internal files one by one.
+- `adapters/`
+  - Business-facing adapter layer such as `RecommendationSessionAdapter`.
 - `storage/`
   - File-backed and in-memory state helpers used by the demos and validation slices.
 
@@ -51,6 +53,19 @@ It shows how to:
 - add one durable projection rule
 - customize one overlay's feedback event type / metadata
 - assemble the runtime through `buildReferenceRuntime()`
+
+## Runtime layering
+
+The framework now has a more explicit runtime split:
+
+- retrieval service
+- retrieval planner
+- candidate construction
+- policy scorer
+- explainable policy service
+- session adapter
+
+This keeps business integrations off the lower-level runtime plumbing in common cases.
 
 ## Extension points
 

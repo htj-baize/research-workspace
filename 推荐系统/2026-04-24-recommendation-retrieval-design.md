@@ -383,4 +383,19 @@ interface RetrievalService {
 - 给 policy 提供必要现实
 - 支持本地/云端混合状态
 - 保持语义清晰但对象足够薄
+## Current code status
+
+这份设计现在已经有了第一版 code-level 落地：
+
+- retrieval service 仍然负责真正取数据
+- 新增了 `RetrievalPlanner`
+- runtime 不再自己硬编码四次 retrieval，而是先拿 plan，再逐步执行
+
+对应代码：
+
+- [recommendation-runtime-services.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/core/recommendation-runtime-services.ts)
+- [default-services.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/runtime/default-services.ts)
+- [in-memory-recommendation-runtime.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/runtime/in-memory-recommendation-runtime.ts)
+
+当前 planner 还是 reference 级，但已经把“plan retrieval” 和 “execute retrieval” 拆开了。
 

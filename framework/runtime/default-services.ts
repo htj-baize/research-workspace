@@ -6,11 +6,17 @@ import type {
 } from "../core/recommendation-runtime-candidate.ts";
 import type {
   DecisionInput,
+  DecisionResult,
+  OpportunityScore,
+  PolicyScorer,
   PolicyService,
+  RetrievalPlan,
+  RetrievalPlanner,
   RetrievalQuery,
   RetrievalResult,
   RetrievalService,
   RetrievedRef,
+  ScoreBreakdown,
 } from "../core/recommendation-runtime-services.ts";
 import type {
   ActionType,
@@ -84,6 +90,76 @@ export class InMemoryRetrievalService implements RetrievalService {
       target,
       refs,
       metadata: bucket?.metadata,
+    };
+  }
+}
+
+export class DefaultRetrievalPlanner implements RetrievalPlanner {
+  async plan(input: {
+    context: Context;
+    intent: Intent;
+    limit?: number;
+    metadata?: Metadata;
+  }): Promise<RetrievalPlan> {
+    const objectRefs =
+      input.intent.name === "recover_flow" || input.intent.name === "clarify_goal"
+        ? undefined
+        : input.context.focusObjectIds;
+
+    return {
+      steps: [
+        {
+          id: "state",
+          rationale: "current state signals",
+          query: {
+            target: "state",
+            context: input.context,
+            intent: input.intent,
+            objectRefs,
+            limit: input.limit,
+            metadata: input.metadata,
+          },
+        },
+        {
+          id: "memory",
+          rationale: "relevant memory slices",
+          query: {
+            target: "memory",
+            context: input.context,
+            intent: input.intent,
+            objectRefs,
+            limit: input.limit,
+            metadata: input.metadata,
+          },
+        },
+        {
+          id: "supply",
+          rationale: "candidate supply",
+          query: {
+            target: "supply",
+            context: input.context,
+            intent: input.intent,
+            objectRefs,
+            limit: input.limit,
+            metadata: input.metadata,
+          },
+        },
+        {
+          id: "constraint",
+          rationale: "active constraints",
+          query: {
+            target: "constraint",
+            context: input.context,
+            intent: input.intent,
+            objectRefs,
+            limit: input.limit,
+            metadata: input.metadata,
+          },
+        },
+      ],
+      metadata: {
+        intent: input.intent.name,
+      },
     };
   }
 }
@@ -189,25 +265,89 @@ export class BasicCandidateConstructionService
   }
 }
 
-export class SimplePolicyService implements PolicyService {
-  private readonly defaultLimit: number;
+export class DefaultPolicyScorer implements PolicyScorer {
+  async score(input: {
+    context: Context;
+    intent: Intent;
+    opportunity: Opportunity;
+  }): Promise<ScoreBreakdown> {
+    const base = input.opportunity.score ?? 0;
+    const mode =
+      (input.opportunity.metadata?.mode as string | undefined) ??
+      input.opportunity.kind;
+    const feedbackKey =
+      (input.opportunity.metadata?.feedbackKey as string | undefined) ?? mode;
+    const rejectedPatterns =
+      (input.context.metadata?.rejectedPatterns as string[] | undefined) ?? [];
+    const acceptedPatterns =
+      (input.context.metadata?.acceptedPatterns as string[] | undefined) ?? [];
 
-  constructor(defaultLimit = 3) {
+    const relevance = base;
+    const costPenalty =
+      input.intent.name === "recover_flow" &&
+      input.opportunity.cost?.level === "high"
+        ? 0.35
+        : 0;
+    const repetitionPenalty =
+      rejectedPatterns.includes(feedbackKey) ||
+      rejectedPatterns.includes(mode) ||
+      rejectedPatterns.includes(input.opportunity.kind)
+        ? 0.2
+        : 0;
+    const valueBoost =
+      acceptedPatterns.includes(feedbackKey) ||
+      acceptedPatterns.includes(mode) ||
+      acceptedPatterns.includes(input.opportunity.kind)
+        ? 0.12
+        : 0;
+
+    return {
+      relevance,
+      value: valueBoost,
+      costPenalty,
+      repetitionPenalty,
+      finalScore: relevance + valueBoost - costPenalty - repetitionPenalty,
+      metadata: {
+        feedbackKey,
+        mode,
+      },
+    };
+  }
+}
+
+export class ExplainablePolicyService implements PolicyService {
+  private readonly defaultLimit: number;
+  private readonly scorer: PolicyScorer;
+
+  constructor(defaultLimit = 3, scorer: PolicyScorer = new DefaultPolicyScorer()) {
     this.defaultLimit = defaultLimit;
+    this.scorer = scorer;
   }
 
   async decide(input: DecisionInput): Promise<DecisionResult> {
     const seen = new Set<string>();
     const selected: Opportunity[] = [];
     const suppressed: DecisionResult["suppressed"] = [];
-    const rejectedPatterns =
-      (input.context.metadata?.rejectedPatterns as string[] | undefined) ?? [];
-    const acceptedPatterns =
-      (input.context.metadata?.acceptedPatterns as string[] | undefined) ?? [];
+    const scores: OpportunityScore[] = [];
+
+    for (const opportunity of input.opportunities) {
+      scores.push({
+        opportunityId: opportunity.id,
+        breakdown: await this.scorer.score({
+          context: input.context,
+          intent: input.intent,
+          opportunity,
+          constraints: input.constraints,
+          metadata: input.metadata,
+        }),
+      });
+    }
+
+    const scoreMap = new Map(
+      scores.map((item) => [item.opportunityId, item.breakdown.finalScore])
+    );
     const sorted = [...input.opportunities].sort(
-      (a, b) =>
-        this.scoreOpportunity(b, input.intent.name, rejectedPatterns, acceptedPatterns) -
-        this.scoreOpportunity(a, input.intent.name, rejectedPatterns, acceptedPatterns)
+      (a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0)
     );
 
     for (const opportunity of sorted) {
@@ -234,48 +374,19 @@ export class SimplePolicyService implements PolicyService {
     return {
       selected,
       suppressed,
+      scores,
       metadata: input.metadata,
     };
   }
-
-  private scoreOpportunity(
-    opportunity: Opportunity,
-    intentName: Intent["name"],
-    rejectedPatterns: string[],
-    acceptedPatterns: string[]
-  ): number {
-    let score = opportunity.score ?? 0;
-    const mode = (opportunity.metadata?.mode as string | undefined) ?? opportunity.kind;
-    const feedbackKey =
-      (opportunity.metadata?.feedbackKey as string | undefined) ?? mode;
-
-    if (intentName === "recover_flow" && opportunity.cost?.level === "high") {
-      score -= 0.35;
-    }
-
-    if (
-      rejectedPatterns.includes(feedbackKey) ||
-      rejectedPatterns.includes(mode) ||
-      rejectedPatterns.includes(opportunity.kind)
-    ) {
-      score -= 0.2;
-    }
-
-    if (
-      acceptedPatterns.includes(feedbackKey) ||
-      acceptedPatterns.includes(mode) ||
-      acceptedPatterns.includes(opportunity.kind)
-    ) {
-      score += 0.12;
-    }
-
-    return score;
-  }
 }
+
+export class SimplePolicyService extends ExplainablePolicyService {}
 
 export type DefaultRuntimeServices = {
   retrieval: RetrievalService;
+  retrievalPlanner: RetrievalPlanner;
   candidateConstruction: CandidateConstructionService;
+  policyScorer: PolicyScorer;
   policy: PolicyService;
 };
 
@@ -284,7 +395,9 @@ export function buildDefaultRuntimeServices(
 ): DefaultRuntimeServices {
   return {
     retrieval: new InMemoryRetrievalService(data),
+    retrievalPlanner: new DefaultRetrievalPlanner(),
     candidateConstruction: new BasicCandidateConstructionService(),
-    policy: new SimplePolicyService(),
+    policyScorer: new DefaultPolicyScorer(),
+    policy: new ExplainablePolicyService(),
   };
 }

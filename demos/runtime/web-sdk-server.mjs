@@ -1,16 +1,15 @@
 import http from "node:http";
 
-import { InMemoryRecommendationRuntime } from "../../framework/runtime/in-memory-recommendation-runtime.ts";
 import {
+  InMemoryRecommendationRuntime,
+  InMemoryContextStateService,
+  RecommendationSessionAdapter,
   BasicCandidateConstructionService,
   InMemoryRetrievalService,
   SimplePolicyService,
-} from "../../framework/runtime/default-services.ts";
-import {
   loadResearchFlowStorage,
   loadSocialFeedStorage,
-} from "../../framework/storage/file-state-storage.mjs";
-import { InMemoryContextStateService } from "../../framework/storage/in-memory-context-state-service.mjs";
+} from "../../framework/index.ts";
 import { getScenarioOverlay } from "./scenario-overlays.mjs";
 
 const PORT = Number(process.env.PORT || 4321);
@@ -829,9 +828,18 @@ async function buildScenarioRuntime(strategy, scenario) {
     },
     contextState,
   });
+  const adapter = new RecommendationSessionAdapter({
+    runtime,
+    overlay,
+    sessionId: storage.session.sessionId,
+    userId: storage.session.userId,
+    surface: storage.session.surface,
+    contextState,
+  });
 
   return {
     runtime,
+    adapter,
     contextState,
     sessionId: storage.session.sessionId,
     userId: storage.session.userId,
@@ -933,15 +941,16 @@ async function buildExplanations(runtimeHandle, decision, scenario) {
 }
 
 async function snapshotPayload(runtimeHandle, strategy, _scenario, decision = null) {
+  const adapterSnapshot = decision
+    ? await runtimeHandle.adapter.snapshot(decision)
+    : undefined;
   return {
     strategy,
     scenario: runtimeHandle.scenario,
     decision,
     trace: runtimeHandle.runtime.getLastDecisionTrace?.(),
     session: runtimeHandle.contextState.getSessionSnapshot(runtimeHandle.sessionId),
-    explanations: decision
-      ? await buildExplanations(runtimeHandle, decision, runtimeHandle.scenario)
-      : [],
+    explanations: adapterSnapshot?.explanations ?? [],
   };
 }
 
@@ -978,10 +987,7 @@ const server = http.createServer(async (req, res) => {
       const strategy = getStrategy(url, body);
       const scenario = getScenario(url, body);
       const runtimeHandle = await getRuntime(strategy, scenario);
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: runtimeHandle.sessionId,
-        userId: runtimeHandle.userId,
-        surface: runtimeHandle.surface,
+      const decision = await runtimeHandle.adapter.next({
         limit: body.limit || 3,
         metadata: body.metadata,
       });
@@ -1000,32 +1006,17 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const event = runtimeHandle.overlay.buildFeedbackEvent({
+      const result = await runtimeHandle.adapter.feedback({
         action: body.action,
         opportunity: body.opportunity,
-      });
-      const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
-        event,
-        context: {
-          sessionId: runtimeHandle.sessionId,
-          userId: runtimeHandle.userId,
-          surface: runtimeHandle.surface,
-          focusObjectIds: [],
-        },
-      });
-
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: runtimeHandle.sessionId,
-        userId: runtimeHandle.userId,
-        surface: runtimeHandle.surface,
-        limit: 3,
+        metadata: body.metadata,
       });
 
       return sendJson(res, 200, {
         ok: true,
         action: body.action,
-        feedbackTrace,
-        ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
+        feedbackTrace: result.feedbackTrace,
+        ...(await snapshotPayload(runtimeHandle, strategy, scenario, result.decision)),
       });
     }
 
@@ -1041,26 +1032,16 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const context =
-        body.context ??
-        (await runtimeHandle.runtime.getContext({
-          sessionId: runtimeHandle.sessionId,
-          userId: runtimeHandle.userId,
-          surface: runtimeHandle.surface,
-        }));
-
       let execution;
+      let decision;
       if (scenario === "social-feed") {
         const action = body.action || "open";
-        const event = runtimeHandle.overlay.buildFeedbackEvent({
+        const result = await runtimeHandle.adapter.feedback({
           action,
           opportunity: body.opportunity,
-          context,
+          metadata: body.metadata,
         });
-        const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
-          event,
-          context,
-        });
+        decision = result.decision;
 
         execution = {
           action: {
@@ -1078,21 +1059,16 @@ const server = http.createServer(async (req, res) => {
             ],
             artifactRefs: action === "save" ? [`saved:${body.opportunity.id}`] : [],
           },
-          feedbackTrace,
+          feedbackTrace: result.feedbackTrace,
         };
       } else {
-        execution = await runtimeHandle.runtime.executeSelection({
+        const result = await runtimeHandle.adapter.execute({
           opportunity: body.opportunity,
-          context,
+          metadata: body.metadata,
         });
+        execution = result.execution;
+        decision = result.decision;
       }
-
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: runtimeHandle.sessionId,
-        userId: runtimeHandle.userId,
-        surface: runtimeHandle.surface,
-        limit: 3,
-      });
 
       return sendJson(res, 200, {
         strategy,
@@ -1118,7 +1094,7 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const event = runtimeHandle.overlay.buildFeedbackEvent({
+      const result = await runtimeHandle.adapter.feedback({
         action: "clarify",
         opportunity: body.opportunity,
         answer: body.answer,
@@ -1127,27 +1103,11 @@ const server = http.createServer(async (req, res) => {
           goal: body.answer,
         },
       });
-      const feedbackTrace = await runtimeHandle.runtime.handleFeedback({
-        event,
-        context: {
-          sessionId: runtimeHandle.sessionId,
-          userId: runtimeHandle.userId,
-          surface: runtimeHandle.surface,
-          focusObjectIds: [],
-        },
-      });
-
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: runtimeHandle.sessionId,
-        userId: runtimeHandle.userId,
-        surface: runtimeHandle.surface,
-        limit: 3,
-      });
 
       return sendJson(res, 200, {
         ok: true,
-        feedbackTrace,
-        ...(await snapshotPayload(runtimeHandle, strategy, scenario, decision)),
+        feedbackTrace: result.feedbackTrace,
+        ...(await snapshotPayload(runtimeHandle, strategy, scenario, result.decision)),
       });
     }
 
@@ -1167,10 +1127,7 @@ const server = http.createServer(async (req, res) => {
       const strategy = getStrategy(url, body);
       const scenario = getScenario(url, body);
       const runtimeHandle = await getRuntime(strategy, scenario);
-      const decision = await runtimeHandle.runtime.decideNext({
-        sessionId: body.sessionId || runtimeHandle.sessionId,
-        userId: body.userId || runtimeHandle.userId,
-        surface: body.surface || runtimeHandle.surface,
+      const decision = await runtimeHandle.adapter.next({
         limit: body.limit || 3,
         metadata: body.metadata,
       });
@@ -1195,16 +1152,16 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const execution = await runtimeHandle.runtime.executeSelection({
+      const result = await runtimeHandle.adapter.execute({
         opportunity: body.opportunity,
-        context: body.context,
         metadata: body.metadata,
       });
 
       return sendJson(res, 200, {
         strategy,
         scenario,
-        execution,
+        execution: result.execution,
+        decision: result.decision,
         trace: runtimeHandle.runtime.getLastExecutionTrace?.(),
       });
     }

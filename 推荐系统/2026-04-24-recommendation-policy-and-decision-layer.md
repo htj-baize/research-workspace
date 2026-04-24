@@ -348,4 +348,22 @@ interface PolicyService {
 > Policy / Decision Layer 的职责，不是简单“给候选排序”，而是在约束、成本、风险、节奏和 flow 的共同作用下，决定现在最应该发生的下一步。
 
 这是从传统 rerank 走向 agent-native recommendation runtime 的核心变化之一。
+## Current code status
+
+这份设计现在已经有了第一版 code-level 落地：
+
+- 新增了 `PolicyScorer`
+- 默认实现里有 `DefaultPolicyScorer`
+- policy service 不再只做黑盒排序，而是通过 `ExplainablePolicyService` 产出 score breakdown
+- runtime decision trace 里已经能看到：
+  - `retrievalPlan`
+  - `scores`
+
+对应代码：
+
+- [recommendation-runtime-services.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/core/recommendation-runtime-services.ts)
+- [default-services.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/runtime/default-services.ts)
+- [in-memory-recommendation-runtime.ts](/Users/joany/Documents/Codex/2026-04-23-new-chat/imported/research-workspace/framework/runtime/in-memory-recommendation-runtime.ts)
+
+当前 scorer 仍然是 heuristic，但它已经把“怎么算分”和“如何做 decision”拆开了。
 

@@ -12,6 +12,7 @@ import {
   type InMemoryRetrievalData,
   type DefaultRuntimeServices,
   BasicCandidateConstructionService,
+  ExplainablePolicyService,
   InMemoryRetrievalService,
   SimplePolicyService,
 } from "./default-services.ts";
@@ -58,17 +59,25 @@ export function buildReferenceRuntime(
   const retrieval =
     config.services?.retrieval ??
     new InMemoryRetrievalService(config.retrievalData ?? {});
+  const retrievalPlanner = config.services?.retrievalPlanner;
   const candidateConstruction =
     config.services?.candidateConstruction ??
     new BasicCandidateConstructionService(mergeCandidateTemplates(config));
   const policy =
-    config.services?.policy ?? new SimplePolicyService(config.policyLimit ?? 3);
+    config.services?.policy ??
+    (config.services?.policyScorer
+      ? new ExplainablePolicyService(
+          config.policyLimit ?? 3,
+          config.services.policyScorer
+        )
+      : new SimplePolicyService(config.policyLimit ?? 3));
 
   const runtime = new InMemoryRecommendationRuntime({
     sessions: config.sessions,
     actions: config.actions,
     services: {
       retrieval,
+      retrievalPlanner,
       candidateConstruction,
       policy,
     },

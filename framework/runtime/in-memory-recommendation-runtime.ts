@@ -34,7 +34,8 @@ import type {
 } from "../core/recommendation-runtime-feedback.ts";
 import type {
   PolicyService,
-  RetrievalQuery,
+  RetrievalPlan,
+  RetrievalPlanner,
   RetrievalService,
 } from "../core/recommendation-runtime-services.ts";
 import { buildDefaultRuntimeServices } from "./default-services.ts";
@@ -58,6 +59,7 @@ export type InMemoryRuntimeConfig = {
   actions?: Action[];
   services?: {
     retrieval: RetrievalService;
+    retrievalPlanner?: RetrievalPlanner;
     candidateConstruction: CandidateConstructionService;
     policy: PolicyService;
   };
@@ -69,10 +71,15 @@ export type InMemoryRuntimeConfig = {
 };
 
 export type RuntimeDecisionTrace = {
+  retrievalPlan?: RetrievalPlan;
   writes: StateWrite[];
   sessionSummary?: SessionSummary;
   workingContext?: WorkingContext;
   promotionDecisions?: PromotionDecision[];
+  scores?: Array<{
+    opportunityId: string;
+    finalScore: number;
+  }>;
 };
 
 export type RuntimeExecutionTrace = RuntimeDecisionTrace & {
@@ -117,6 +124,7 @@ export class InMemoryRecommendationRuntime
   private readonly sessionStore = new Map<string, SessionSnapshot>();
   private readonly actionStore = new Map<string, Action>();
   private readonly retrieval: RetrievalService;
+  private readonly retrievalPlanner: RetrievalPlanner;
   private readonly candidateConstruction: CandidateConstructionService;
   private readonly policy: PolicyService;
   private readonly feedbackInterpreter: FeedbackInterpreter;
@@ -137,6 +145,8 @@ export class InMemoryRecommendationRuntime
 
     const defaults = buildDefaultRuntimeServices();
     this.retrieval = config.services?.retrieval ?? defaults.retrieval;
+    this.retrievalPlanner =
+      config.services?.retrievalPlanner ?? defaults.retrievalPlanner;
     this.candidateConstruction =
       config.services?.candidateConstruction ?? defaults.candidateConstruction;
     this.policy = config.services?.policy ?? defaults.policy;
@@ -254,25 +264,34 @@ export class InMemoryRecommendationRuntime
   }) {
     const intent =
       input.intent ?? (await this.resolveIntent({ context: input.context }));
-
-    const materialQuery: RetrievalQuery = {
-      target: "supply",
+    const retrievalPlan = await this.retrievalPlanner.plan({
       context: input.context,
       intent,
-      objectRefs: input.context.focusObjectIds,
       limit: input.limit,
       metadata: input.metadata,
-    };
-
-    const [state, memory, supply, constraints] = await Promise.all([
-      this.retrieval.retrieveState({ ...materialQuery, target: "state" }),
-      this.retrieval.retrieveMemory({ ...materialQuery, target: "memory" }),
-      this.retrieval.retrieveSupply({ ...materialQuery, target: "supply" }),
-      this.retrieval.retrieveConstraints({
-        ...materialQuery,
-        target: "constraint",
-      }),
-    ]);
+    });
+    const planResults = await Promise.all(
+      retrievalPlan.steps.map(async (step) => {
+        switch (step.query.target) {
+          case "state":
+            return [step.id, await this.retrieval.retrieveState(step.query)] as const;
+          case "memory":
+            return [step.id, await this.retrieval.retrieveMemory(step.query)] as const;
+          case "supply":
+            return [step.id, await this.retrieval.retrieveSupply(step.query)] as const;
+          case "constraint":
+            return [
+              step.id,
+              await this.retrieval.retrieveConstraints(step.query),
+            ] as const;
+        }
+      })
+    );
+    const resultMap = new Map(planResults);
+    const state = resultMap.get("state");
+    const memory = resultMap.get("memory");
+    const supply = resultMap.get("supply");
+    const constraints = resultMap.get("constraint");
 
     const opportunities = await this.candidateConstruction.construct({
       context: input.context,
@@ -306,8 +325,21 @@ export class InMemoryRecommendationRuntime
       intent,
       opportunities,
       constraints: input.context.constraints,
-      metadata: input.metadata,
+      metadata: {
+        ...input.metadata,
+        retrievalPlan,
+      },
     });
+
+    this.lastDecisionTrace = {
+      ...(this.lastDecisionTrace ?? { writes: [] }),
+      retrievalPlan,
+      scores:
+        decision.scores?.map((item) => ({
+          opportunityId: item.opportunityId,
+          finalScore: item.breakdown.finalScore,
+        })) ?? [],
+    };
 
     return decision.selected;
   }
@@ -435,9 +467,11 @@ export class InMemoryRecommendationRuntime
       });
 
       this.lastDecisionTrace = {
+        retrievalPlan: this.lastDecisionTrace?.retrievalPlan,
         writes,
         sessionSummary,
         workingContext,
+        scores: this.lastDecisionTrace?.scores,
       };
     }
 
