@@ -20,6 +20,7 @@ This repository now separates the **framework** layer from the **demo** layer.
 - `framework/core/recommendation-runtime-protocol.ts`
 - `framework/core/recommendation-runtime-services.ts`
 - `framework/core/recommendation-runtime-candidate.ts`
+- `framework/core/recommendation-runtime-feedback.ts`
 - `framework/core/recommendation-runtime-context.ts`
 - `framework/runtime/default-services.ts`
 - `framework/runtime/in-memory-recommendation-runtime.ts`

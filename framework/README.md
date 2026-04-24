@@ -19,6 +19,7 @@ This directory holds the runtime pieces that are meant to become the packaged SD
 
 - `core/`
   - Shared protocol and service contracts.
+  - Feedback protocol for event -> signal -> state projection.
 - `runtime/`
   - Default retrieval, candidate construction, policy, and in-memory runtime implementation.
 - `storage/`
